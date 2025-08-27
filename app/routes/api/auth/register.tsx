@@ -1,5 +1,5 @@
 import { type ActionFunctionArgs } from 'react-router';
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '~/lib/supabase';
@@ -135,7 +135,7 @@ export async function action({ request }: ActionFunctionArgs) {
   } catch (error) {
     console.error('Register error:', error);
     return Response.json(
-      { error: 'Terjadi kesalahan server' },
+      { error: `Terjadi kesalahan server ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     );
   }

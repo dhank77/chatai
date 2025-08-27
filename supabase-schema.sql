@@ -5,9 +5,11 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS clients (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
+  password_hash VARCHAR(255), -- Nullable for OAuth users
   company_name VARCHAR(255) NOT NULL,
   client_id VARCHAR(50) UNIQUE NOT NULL,
+  oauth_provider VARCHAR(50), -- 'google', 'github', etc.
+  oauth_id VARCHAR(255), -- OAuth provider user ID
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

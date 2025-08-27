@@ -38,7 +38,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   } catch (error) {
     console.error('Widget config loader error:', error);
     return Response.json(
-      { error: 'Terjadi kesalahan server' },
+      { error: `Terjadi kesalahan server ${error instanceof Error ? error.message : String(error)}` },
       { status: 500 }
     );
   }

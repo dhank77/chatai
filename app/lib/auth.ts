@@ -128,7 +128,7 @@ export async function registerUser(
   } catch (error) {
     return {
       success: false,
-      error: 'Terjadi kesalahan server'
+      error: `Terjadi kesalahan server ${error instanceof Error ? error.message : String(error)}`
     };
   }
 }
@@ -181,19 +181,41 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
   }
 }
 
-// Get user from token
+// Get user from token (supports both JWT and Supabase tokens)
 export async function getUserFromToken(token: string): Promise<User | null> {
   try {
+    // First try to verify as our JWT token
     const decoded = verifyToken(token);
-    if (!decoded) return null;
+    if (decoded) {
+      const { data: userData, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('id', decoded.id)
+        .single();
 
-    const { data: userData, error } = await supabase
+      if (error || !userData) return null;
+
+      return {
+        id: userData.id,
+        email: userData.email,
+        company_name: userData.company_name,
+        client_id: userData.client_id,
+      };
+    }
+    
+    // If JWT verification fails, try Supabase token
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) return null;
+    
+    // Get client data from our database
+    const { data: userData, error: dbError } = await supabase
       .from('clients')
       .select('*')
-      .eq('id', decoded.id)
+      .eq('email', user.email)
       .single();
 
-    if (error || !userData) return null;
+    if (dbError || !userData) return null;
 
     return {
       id: userData.id,
@@ -203,6 +225,105 @@ export async function getUserFromToken(token: string): Promise<User | null> {
     };
   } catch (error) {
     return null;
+  }
+}
+
+// Create or get OAuth user
+export async function createOrGetOAuthUser(
+  email: string,
+  provider: string,
+  providerId: string,
+  companyName?: string
+): Promise<AuthResult> {
+  try {
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      // Update OAuth info if needed
+      if (!existingUser.oauth_provider || !existingUser.oauth_id) {
+        await supabase
+          .from('clients')
+          .update({
+            oauth_provider: provider,
+            oauth_id: providerId,
+          })
+          .eq('id', existingUser.id);
+      }
+
+      const user: User = {
+        id: existingUser.id,
+        email: existingUser.email,
+        company_name: existingUser.company_name,
+        client_id: existingUser.client_id,
+      };
+
+      const token = generateToken(user);
+
+      return {
+        success: true,
+        user,
+        token
+      };
+    }
+
+    // Create new OAuth user
+    const clientId = generateClientId();
+    const defaultCompanyName = companyName || email.split('@')[0] + ' Company';
+
+    const { data: newUser, error } = await supabase
+      .from('clients')
+      .insert({
+        email,
+        password_hash: null, // OAuth users don't have password
+        company_name: defaultCompanyName,
+        client_id: clientId,
+        oauth_provider: provider,
+        oauth_id: providerId,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return {
+        success: false,
+        error: 'Gagal membuat akun OAuth'
+      };
+    }
+
+    const user: User = {
+      id: newUser.id,
+      email: newUser.email,
+      company_name: newUser.company_name,
+      client_id: newUser.client_id,
+    };
+
+    const token = generateToken(user);
+
+    // Create default widget config
+    await supabase.from('widget_configs').insert({
+      client_id: clientId,
+      theme_color: '#3B82F6',
+      bot_name: 'Assistant',
+      bot_avatar: '',
+      position: 'bottom-right',
+      welcome_message: 'Halo! Ada yang bisa saya bantu?',
+    });
+
+    return {
+      success: true,
+      user,
+      token
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Terjadi kesalahan server ${error instanceof Error ? error.message : String(error)}`
+    };
   }
 }
 
