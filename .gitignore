@@ -1,6 +1,9 @@
 .DS_Store
 /node_modules/
+/widget/node_modules/
+/widget/dist/
 
 # React Router
 /.react-router/
 /build/
+.env
