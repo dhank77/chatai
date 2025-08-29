@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
   client_id VARCHAR(50) NOT NULL REFERENCES clients(client_id) ON DELETE CASCADE,
   filename VARCHAR(255) NOT NULL,
   content TEXT NOT NULL,
-  embedding vector(1536), -- OpenAI text-embedding-3-small dimension
+  embedding vector(768), -- Google Gemini text-embedding-004 dimension
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -65,7 +65,7 @@ USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 -- Function to search knowledge base using vector similarity
 CREATE OR REPLACE FUNCTION search_knowledge_base(
   client_id TEXT,
-  query_embedding vector(1536),
+  query_embedding vector(768),
   match_threshold FLOAT DEFAULT 0.7,
   match_count INT DEFAULT 5
 )

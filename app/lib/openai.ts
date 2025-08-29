@@ -1,10 +1,13 @@
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from './supabase';
 import { splitTextIntoChunks } from './utils';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
 });
+
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
 export interface EmbeddingResult {
   success: boolean;
@@ -27,20 +30,18 @@ export interface SearchResult {
 // Generate embedding for text
 export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
   try {
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: text,
-    });
-
+    const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const result = await model.embedContent(text);
+    
     return {
       success: true,
-      embedding: response.data[0].embedding,
+      embedding: result.embedding.values,
     };
   } catch (error) {
-    console.error('Error generating embedding:', error);
+    console.error('Error generating embedding with Gemini:', error);
     return {
       success: false,
-      error: 'Gagal generate embedding',
+      error: 'Gagal generate embedding dengan Gemini',
     };
   }
 }
@@ -153,22 +154,22 @@ Instruksi:
 - Berikan jawaban yang helpful dan akurat
 - Gunakan bahasa Indonesia yang sopan dan profesional`;
     
-    // Build messages array
-    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory,
-      { role: 'user', content: userMessage },
-    ];
+    // Build conversation history for Gemini
+    let conversationText = systemPrompt + '\n\n';
     
-    // Generate response
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages,
-      max_tokens: 500,
-      temperature: 0.7,
+    // Add conversation history
+    conversationHistory.forEach(msg => {
+      conversationText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n`;
     });
     
-    const response = completion.choices[0]?.message?.content;
+    // Add current user message
+    conversationText += `User: ${userMessage}\nAssistant:`;
+    
+    // Generate response using Gemini
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(conversationText);
+    
+    const response = result.response.text();
     
     if (!response) {
       return {
@@ -182,10 +183,10 @@ Instruksi:
       response,
     };
   } catch (error) {
-    console.error('Error generating chat response:', error);
+    console.error('Error generating chat response with Gemini:', error);
     return {
       success: false,
-      error: 'Gagal generate response',
+      error: 'Gagal generate response dengan Gemini',
     };
   }
 }
