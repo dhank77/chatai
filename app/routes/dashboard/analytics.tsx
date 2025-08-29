@@ -52,11 +52,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
     // Get chat statistics
     const { data: chatStatsData } = await supabase
       .from('chat_sessions')
-      .select('id, message_count, created_at')
+      .select('id, messages, created_at')
       .eq('client_id', user.client_id);
 
     const totalSessions = chatStatsData?.length || 0;
-    const totalMessages = chatStatsData?.reduce((sum, session) => sum + (session.message_count || 0), 0) || 0;
+    const totalMessages = chatStatsData?.reduce((sum, session) => {
+      const messages = Array.isArray(session.messages) ? session.messages : [];
+      return sum + messages.length;
+    }, 0) || 0;
     const avgMessagesPerSession = totalSessions > 0 ? Math.round(totalMessages / totalSessions) : 0;
     
     // Sessions today
@@ -87,7 +90,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
       return {
         date,
         sessions: sessionsOnDate.length,
-        messages: sessionsOnDate.reduce((sum, session) => sum + (session.message_count || 0), 0)
+        messages: sessionsOnDate.reduce((sum, session) => {
+          const messages = Array.isArray(session.messages) ? session.messages : [];
+          return sum + messages.length;
+        }, 0)
       };
     });
 
