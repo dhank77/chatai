@@ -11,6 +11,7 @@ import {
   Database,
   Settings
 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 
 export async function loader({ request }: { request: Request }) {
   const cookieHeader = request.headers.get('Cookie');
@@ -120,8 +121,8 @@ export default function Dashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
-          <div key={stat.name} className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
+          <Card key={stat.name}>
+            <CardContent className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className={`w-8 h-8 ${stat.color} rounded-md flex items-center justify-center`}>
@@ -142,18 +143,18 @@ export default function Dashboard() {
                   </dl>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Widget Preview */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Widget Preview
-            </h3>
+        <Card>
+          <CardHeader>
+            <CardTitle>Widget Preview</CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-300">
               <div className="text-center">
                 <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3">
@@ -181,15 +182,15 @@ export default function Dashboard() {
                 {`<script src="https://cdn.domainku.com/chatbot.js" data-client-id="${clientId}"></script>`}
               </code>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Recent Chats */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Percakapan Terbaru
-            </h3>
+        <Card>
+          <CardHeader>
+            <CardTitle>Percakapan Terbaru</CardTitle>
+          </CardHeader>
+          <CardContent>
             {recentChats.length > 0 ? (
               <div className="space-y-3">
                 {recentChats.slice(0, 5).map((chat) => (
@@ -224,16 +225,16 @@ export default function Dashboard() {
                 </p>
               </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-            Quick Actions
-          </h3>
+      <Card>
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <a
               href="/dashboard/knowledge-base"
@@ -267,9 +268,9 @@ export default function Dashboard() {
                 Analisis performa chatbot
               </p>
             </a>
-          </div>
-        </div>
-      </div>
+            </div>
+          </CardContent>
+        </Card>
     </div>
   );
 }

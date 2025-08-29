@@ -11,6 +11,7 @@ import {
   X
 } from 'lucide-react';
 import { useState } from 'react';
+import { Button } from '../../components/ui/button';
 
 export async function loader({ request }: { request: Request }) {
   const cookieHeader = request.headers.get('Cookie');
@@ -76,13 +77,14 @@ export default function DashboardLayout() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
         <div className="relative flex w-full max-w-xs flex-1 flex-col bg-white">
           <div className="absolute top-0 right-0 -mr-12 pt-2">
-            <button
-              type="button"
-              className="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-1 h-10 w-10 rounded-full text-white hover:bg-white/20"
               onClick={() => setSidebarOpen(false)}
             >
-              <X className="h-6 w-6 text-white" />
-            </button>
+              <X className="h-6 w-6" />
+            </Button>
           </div>
           <div className="h-0 flex-1 overflow-y-auto pt-5 pb-4">
             <div className="flex flex-shrink-0 items-center px-4">
@@ -110,13 +112,14 @@ export default function DashboardLayout() {
             </nav>
           </div>
           <div className="flex flex-shrink-0 border-t border-gray-200 p-4">
-            <button
+            <Button
+              variant="ghost"
               onClick={handleLogout}
-              className="group flex w-full items-center px-2 py-2 text-base font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900"
+              className="w-full justify-start text-gray-600 hover:text-gray-900"
             >
               <LogOut className="mr-4 h-6 w-6" />
               Logout
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -149,13 +152,14 @@ export default function DashboardLayout() {
             </nav>
           </div>
           <div className="flex flex-shrink-0 border-t border-gray-200 p-4">
-            <button
+            <Button
+              variant="ghost"
               onClick={handleLogout}
-              className="group flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 rounded-md hover:bg-gray-50 hover:text-gray-900"
+              className="w-full justify-start text-gray-600 hover:text-gray-900"
             >
               <LogOut className="mr-3 h-6 w-6" />
               Logout
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -164,13 +168,14 @@ export default function DashboardLayout() {
       <div className="lg:pl-64">
         {/* Top bar */}
         <div className="sticky top-0 z-10 bg-white pl-1 pt-1 sm:pl-3 sm:pt-3 lg:hidden">
-          <button
-            type="button"
-            className="-ml-0.5 -mt-0.5 inline-flex h-12 w-12 items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="-ml-0.5 -mt-0.5 h-12 w-12 text-gray-500 hover:text-gray-900"
             onClick={() => setSidebarOpen(true)}
           >
             <Menu className="h-6 w-6" />
-          </button>
+          </Button>
         </div>
 
         {/* Page content */}
