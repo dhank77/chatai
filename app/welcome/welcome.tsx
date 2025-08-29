@@ -45,13 +45,13 @@ export function Welcome() {
             </div>
             <div className="flex items-center space-x-4">
               <Link
-                to="/auth/login"
+                to="/login"
                 className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
               >
                 Login
               </Link>
               <Link
-                to="/auth/register"
+                to="/register"
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
               >
                 Daftar Gratis
