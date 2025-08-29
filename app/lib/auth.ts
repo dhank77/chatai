@@ -111,14 +111,17 @@ export async function registerUser(
     const token = generateToken(user);
 
     // Create default widget config
-    await supabase.from('widget_configs').insert({
+    const { error: widgetError } = await supabase.from('widget_configs').insert({
       client_id: clientId,
-      theme_color: '#3B82F6',
-      bot_name: 'Assistant',
-      bot_avatar: '',
+      primary_color: '#3B82F6',
+      name: 'Assistant',
       position: 'bottom-right',
       welcome_message: 'Halo! Ada yang bisa saya bantu?',
     });
+
+    if (widgetError) {
+      console.error('Failed to create widget config:', widgetError);
+    }
 
     return {
       success: true,
