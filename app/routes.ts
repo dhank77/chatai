@@ -19,6 +19,7 @@ export default [
     route("auth/register", "routes/api/auth/register.tsx"),
     route("chat", "routes/api/chat.tsx"),
     route("widget/config/:clientId", "routes/api/widget/config.tsx"),
+    route("knowledge-base", "routes/api/knowledge-base.tsx"),
     route("knowledge-base/upload", "routes/api/knowledge-base/upload.tsx"),
   ]),
 ] satisfies RouteConfig;

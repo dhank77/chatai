@@ -206,14 +206,32 @@ export async function action({ request }: ActionFunctionArgs) {
       }
 
       case 'delete': {
-        const documentId = formData.get('documentId') as string;
+        const filename = formData.get('filename') as string;
 
-        if (!documentId) {
+        if (!filename) {
           return Response.json(
-            { error: 'Document ID harus diisi' },
+            { error: 'Filename harus diisi' },
             { status: 400 }
           );
         }
+
+        // Get document ID by filename
+        const { data: document, error: findError } = await supabase
+          .from('knowledge_base')
+          .select('id')
+          .eq('filename', filename)
+          .eq('client_id', user.client_id)
+          .single();
+
+        if (findError || !document) {
+          console.error('Document find error:', findError);
+          return Response.json(
+            { error: 'Dokumen tidak ditemukan' },
+            { status: 404 }
+          );
+        }
+
+        const documentId = document.id;
 
         // Delete chunks first
         const { error: chunksError } = await supabase

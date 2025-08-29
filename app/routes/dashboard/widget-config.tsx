@@ -5,7 +5,6 @@ import { supabase } from '~/lib/supabase';
 import { formatDate } from '~/lib/utils';
 import {
   Settings,
-  Palette,
   MessageSquare,
   Code,
   Eye,

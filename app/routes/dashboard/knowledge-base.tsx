@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { type LoaderFunctionArgs, type ActionFunctionArgs, useLoaderData, useFetcher } from 'react-router';
 import { requireAuth } from '~/lib/auth';
 import { supabase } from '~/lib/supabase';
-import { formatDate, formatFileSize } from '~/lib/utils';
+import { formatDate } from '~/lib/utils';
 import {
   Upload,
   FileText,
@@ -111,7 +111,7 @@ export default function KnowledgeBase() {
 
     fetcher.submit(formData, {
       method: 'POST',
-      action: '/api/knowledge-base'
+      action: '/api/knowledge-base/upload'
     });
   };
 

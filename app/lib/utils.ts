@@ -24,3 +24,35 @@ export function formatDate(dateString: string): string {
     minute: '2-digit'
   });
 }
+
+export function isValidFileType(file: File): boolean {
+  const allowedTypes = [
+    'application/pdf',
+    'text/plain',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ];
+  return allowedTypes.includes(file.type);
+}
+
+export function isValidFileSize(file: File): boolean {
+  const maxSize = 10 * 1024 * 1024; // 10MB
+  return file.size <= maxSize;
+}
+
+export async function extractTextFromFile(file: File): Promise<string> {
+  if (file.type === 'text/plain') {
+    return await file.text();
+  }
+  // For other file types, return filename as placeholder
+  // In production, you would use proper PDF/DOC parsers
+  return `Content from ${file.name}`;
+}
+
+export function splitTextIntoChunks(text: string, chunkSize: number): string[] {
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length; i += chunkSize) {
+    chunks.push(text.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
