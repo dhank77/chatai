@@ -332,12 +332,31 @@ export async function createOrGetOAuthUser(
 
 // Middleware untuk proteksi route
 export function requireAuth(request: Request): User | null {
+  let token: string | null = null;
+
+  // Check Authorization header first
   const authHeader = request.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  }
+
+  // If no Authorization header, check cookie
+  if (!token) {
+    const cookieHeader = request.headers.get('Cookie');
+    if (cookieHeader) {
+      const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+        const [key, value] = cookie.trim().split('=');
+        acc[key] = value;
+        return acc;
+      }, {} as Record<string, string>);
+      token = cookies['auth-token'];
+    }
+  }
+
+  if (!token) {
     return null;
   }
 
-  const token = authHeader.substring(7);
   const decoded = verifyToken(token);
   
   if (!decoded) {
