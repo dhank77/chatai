@@ -1,6 +1,12 @@
 import { Form, Link, redirect, useActionData, useNavigation } from 'react-router';
+import { useState } from 'react';
 import { registerUser } from '../../lib/auth';
 import { isValidEmail, isValidPassword } from '../../lib/utils';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Eye, EyeOff } from 'lucide-react';
 
 export function meta() {
   return [
@@ -70,108 +76,123 @@ export default function Register() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === 'submitting';
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center">
             Daftar Akun Baru
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          </CardTitle>
+          <CardDescription className="text-center">
             Atau{' '}
             <Link
               to="/login"
-              className="font-medium text-blue-600 hover:text-blue-500"
+              className="font-medium text-primary hover:underline"
             >
               login dengan akun yang sudah ada
             </Link>
-          </p>
-        </div>
-        
-        <Form className="mt-8 space-y-6" method="post">
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
-                Nama Perusahaan
-              </label>
-              <input
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form className="space-y-4" method="post">
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Nama Perusahaan</Label>
+              <Input
                 id="companyName"
                 name="companyName"
                 type="text"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Nama Perusahaan"
+                placeholder="Masukkan nama perusahaan"
               />
             </div>
             
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
-              </label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
                 id="email"
                 name="email"
                 type="email"
                 autoComplete="email"
                 required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Email"
+                placeholder="Masukkan email Anda"
               />
             </div>
             
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Password (min. 8 karakter)"
-              />
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  placeholder="Password (min. 8 karakter)"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
             
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Konfirmasi Password
-              </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Konfirmasi Password"
-              />
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  placeholder="Konfirmasi password Anda"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
 
-          {actionData?.error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-700">{actionData.error}</div>
-            </div>
-          )}
+            {actionData?.error && (
+              <div className="rounded-md bg-destructive/15 p-3">
+                <div className="text-sm text-destructive">{actionData.error}</div>
+              </div>
+            )}
 
-          <div>
-            <button
+            <Button
               type="submit"
               disabled={isSubmitting}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full"
             >
               {isSubmitting ? 'Memproses...' : 'Daftar'}
-            </button>
-          </div>
-          
-          <div className="text-xs text-gray-500 text-center">
-            Dengan mendaftar, Anda menyetujui syarat dan ketentuan penggunaan platform ini.
-          </div>
-        </Form>
-      </div>
+            </Button>
+            
+            <div className="text-xs text-muted-foreground text-center">
+              Dengan mendaftar, Anda menyetujui syarat dan ketentuan penggunaan platform ini.
+            </div>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
