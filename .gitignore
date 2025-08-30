@@ -9,3 +9,4 @@
 .env
 migrate-vector-dimensions.sql
 app/lib/presensi.pdf
+fix-search-function.sql

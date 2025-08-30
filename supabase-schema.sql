@@ -117,6 +117,7 @@ CREATE OR REPLACE FUNCTION search_knowledge_base_chunks(
 )
 RETURNS TABLE (
   content TEXT,
+  filename TEXT,
   similarity FLOAT
 )
 LANGUAGE plpgsql
@@ -125,8 +126,10 @@ BEGIN
   RETURN QUERY
   SELECT 
     kbc.content,
+    kb.filename,
     1 - (kbc.embedding <=> query_embedding) AS similarity
   FROM knowledge_base_chunks kbc
+  JOIN knowledge_base kb ON kbc.document_id = kb.id
   WHERE 
     kbc.client_id = target_client_id
     AND 1 - (kbc.embedding <=> query_embedding) > match_threshold

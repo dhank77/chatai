@@ -3,7 +3,6 @@ import { OpenAIEmbeddings } from '@langchain/openai';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
 import { Document } from '@langchain/core/documents';
-import { VectorStoreRetriever } from '@langchain/core/vectorstores';
 import { RunnableSequence, RunnablePassthrough } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -34,20 +33,21 @@ const createVectorStore = (clientId: string) => {
   return new SupabaseVectorStore(embeddings, {
     client: supabase,
     tableName: 'knowledge_base_chunks',
-    queryName: 'match_documents',
+    queryName: 'search_knowledge_base_chunks',
     filter: { client_id: clientId },
   });
 };
 
 // Create LangChain retrieval chain for enhanced RAG
 const createRetrievalChain = (clientId: string) => {
-  const vectorStore = createVectorStore(clientId);
-  const retriever = vectorStore.asRetriever({
-    searchType: 'similarity',
-    k: 5,
-  });
+  try {
+    const vectorStore = createVectorStore(clientId);
+    const retriever = vectorStore.asRetriever({
+      searchType: 'similarity',
+      k: 5,
+    });
 
-  const prompt = ChatPromptTemplate.fromTemplate(`
+    const prompt = ChatPromptTemplate.fromTemplate(`
 Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan konteks yang diberikan.
 Gunakan informasi berikut untuk menjawab pertanyaan dengan akurat dan informatif.
 
@@ -58,18 +58,82 @@ Pertanyaan: {question}
 
 Jawaban:`);
 
-  const formatDocs = (docs: Document[]) => {
-    return docs.map(doc => `Dari ${doc.metadata.filename || 'dokumen'}:\n${doc.pageContent}`).join('\n\n');
-  };
+    const formatDocs = (docs: Document[]) => {
+      try {
+        if (!docs || !Array.isArray(docs) || docs.length === 0) {
+          return 'Tidak ada konteks yang ditemukan.';
+        }
+        
+        // Additional validation to ensure each doc is valid
+        const validDocs = docs.filter(doc => 
+          doc && 
+          typeof doc === 'object' && 
+          doc.pageContent && 
+          typeof doc.pageContent === 'string'
+        );
+        
+        if (validDocs.length === 0) {
+          return 'Tidak ada konteks yang valid ditemukan.';
+        }
+        
+        return validDocs.map(doc => {
+          const filename = doc.metadata?.filename || 'dokumen';
+          const content = doc.pageContent || '';
+          return `Dari ${filename}:\n${content}`;
+        }).join('\n\n');
+      } catch (error) {
+        console.error('Error in formatDocs:', error);
+        return 'Terjadi kesalahan saat memformat dokumen.';
+      }
+    };
 
-  return RunnableSequence.from([
-    {
-      context: retriever.pipe(formatDocs),
-      question: new RunnablePassthrough(),
-    },
-    prompt,
-    new StringOutputParser(),
-  ]);
+    // Create a safe retriever wrapper
+    const safeRetriever = {
+      pipe: (formatter: any) => {
+        return {
+          invoke: async (query: string) => {
+            try {
+              const docs = await retriever.invoke(query);
+              return formatter(docs);
+            } catch (error) {
+              console.error('Error in retriever.invoke:', error);
+              return 'Terjadi kesalahan saat mengambil dokumen dari knowledge base.';
+            }
+          }
+        };
+      }
+    };
+
+    return RunnableSequence.from([
+      {
+        context: safeRetriever.pipe(formatDocs),
+        question: new RunnablePassthrough(),
+      },
+      prompt,
+      new StringOutputParser(),
+    ]);
+  } catch (error) {
+    console.error('Error creating retrieval chain:', error);
+    // Return a fallback chain that doesn't use vector store
+    const prompt = ChatPromptTemplate.fromTemplate(`
+Anda adalah asisten AI yang membantu menjawab pertanyaan.
+
+Konteks:
+{context}
+
+Pertanyaan: {question}
+
+Jawaban: Maaf, saat ini knowledge base tidak tersedia. Saya tidak dapat memberikan informasi spesifik tentang pertanyaan Anda.`);
+    
+    return RunnableSequence.from([
+      {
+        context: () => 'Knowledge base tidak tersedia.',
+        question: new RunnablePassthrough(),
+      },
+      prompt,
+      new StringOutputParser(),
+    ]);
+  }
 };
 
 // Enhanced RAG function using LangChain retrieval chain
@@ -85,6 +149,10 @@ export async function enhancedRAGSearch(
     });
 
     const docs = await retriever.getRelevantDocuments(query);
+    
+    if (!docs || !Array.isArray(docs) || docs.length === 0) {
+      return { context: '', sources: [] };
+    }
     
     const context = docs.map(doc => doc.pageContent).join('\n\n');
     const sources = [...new Set(docs.map(doc => doc.metadata.filename || 'unknown'))];
@@ -258,6 +326,10 @@ export async function searchKnowledgeBase(
     // Perform similarity search with LangChain
     const results = await vectorStore.similaritySearchWithScore(query, limit);
     
+    if (!results || !Array.isArray(results) || results.length === 0) {
+      return [];
+    }
+    
     // Transform results to match existing interface
     return results.map(([doc, score]) => ({
       content: doc.pageContent,
@@ -276,18 +348,22 @@ export async function searchKnowledgeBase(
       }
       
       const { data, error } = await supabase.rpc('search_knowledge_base_chunks', {
-        client_id: clientId,
         query_embedding: queryEmbeddingResult.embedding,
-        match_threshold: 0.7,
         match_count: limit,
+        filter: { client_id: clientId },
       });
-      
+
       if (error) {
         console.error('Error in fallback search:', error);
         return [];
       }
-      
-      return data || [];
+
+      // Transform data to match SearchResult interface
+      return (data || []).map((item: any) => ({
+        content: item.content,
+        filename: item.metadata?.filename || 'unknown',
+        similarity: 1 - (item.distance || 0), // Convert distance to similarity
+      }));
     } catch (fallbackError) {
        console.error('Error in fallback searchKnowledgeBase:', fallbackError);
        return [];
@@ -295,35 +371,57 @@ export async function searchKnowledgeBase(
    }
  }
 
-// Generate chat response using RAG
+// Generate chat response using LangChain RAG
 export async function generateChatResponse(
   clientId: string,
   userMessage: string,
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
 ): Promise<ChatResponse> {
   try {
-    // Use enhanced RAG search for better context retrieval
-    const { context, sources } = await enhancedRAGSearch(clientId, userMessage);
+    // Get context using simple search without LangChain
+    let context = 'Tidak ada konteks yang tersedia.';
+    try {
+      const searchResults = await searchKnowledgeBase(clientId, userMessage, 3);
+      if (searchResults && Array.isArray(searchResults) && searchResults.length > 0) {
+        context = searchResults.map(result => {
+          if (result && result.filename && result.content) {
+            return `Dari ${result.filename}:\n${result.content}`;
+          }
+          return '';
+        }).filter(Boolean).join('\n\n');
+        
+        if (!context.trim()) {
+          context = 'Tidak ada konteks yang relevan ditemukan dalam knowledge base.';
+        }
+      } else {
+        context = 'Tidak ada konteks yang relevan ditemukan dalam knowledge base.';
+      }
+    } catch (searchError) {
+      console.error('Error in knowledge base search:', searchError);
+      context = 'Terjadi kesalahan saat mencari di knowledge base.';
+    }
     
-    // Build enhanced system prompt with source information
-    const systemPrompt = `Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base perusahaan.
+    // Build enhanced system prompt with conversation history
+    let systemPrompt = `Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base yang terdaftar.
 
 Konteks dari knowledge base:
 ${context}
-
-Sumber informasi: ${sources.join(', ')}
 
 Instruksi:
 - Jawab pertanyaan berdasarkan konteks yang diberikan
 - Jika informasi tidak tersedia dalam konteks, katakan bahwa Anda tidak memiliki informasi tersebut
 - Berikan jawaban yang helpful dan akurat
 - Gunakan bahasa Indonesia yang sopan dan profesional
-- Sebutkan sumber informasi jika relevan`;
+- Sebutkan sumber dokumen jika relevan`;
+    
+    // Add conversation history to system prompt if available
+    if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+      systemPrompt += `\n\nRiwayat percakapan sebelumnya:\n${conversationHistory.map(msg => `${msg.role}: ${msg.content}`).join('\n')}`;
+    }
     
     // Build messages array
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
-      ...conversationHistory,
       { role: 'user', content: userMessage },
     ];
     
@@ -363,30 +461,52 @@ export async function generateStreamChatResponse(
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
 ): Promise<StreamChatResponse> {
   try {
-    // Use enhanced RAG search for better context retrieval
-    const { context, sources } = await enhancedRAGSearch(clientId, userMessage);
+    // Get context using simple search without LangChain
+    let context = 'Tidak ada konteks yang tersedia.';
+    try {
+      const searchResults = await searchKnowledgeBase(clientId, userMessage, 3);
+      if (searchResults && Array.isArray(searchResults) && searchResults.length > 0) {
+        context = searchResults.map(result => {
+          if (result && result.filename && result.content) {
+            return `Dari ${result.filename}:\n${result.content}`;
+          }
+          return '';
+        }).filter(Boolean).join('\n\n');
+        
+        if (!context.trim()) {
+          context = 'Tidak ada konteks yang relevan ditemukan dalam knowledge base.';
+        }
+      } else {
+        context = 'Tidak ada konteks yang relevan ditemukan dalam knowledge base.';
+      }
+    } catch (searchError) {
+      console.error('Error in knowledge base search:', searchError);
+      context = 'Terjadi kesalahan saat mencari di knowledge base.';
+    }
     
-    // Build enhanced system prompt with source information
-    const systemPrompt = `Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base perusahaan.
+    // Build enhanced system prompt with conversation history
+    let systemPrompt = `Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base perusahaan.
 
 Konteks dari knowledge base:
 ${context}
-
-Sumber informasi: ${sources.join(', ')}
 
 Instruksi:
 - Jawab pertanyaan berdasarkan konteks yang diberikan
 - Jika informasi tidak tersedia dalam konteks, katakan bahwa Anda tidak memiliki informasi tersebut
 - Berikan jawaban yang helpful dan akurat
 - Gunakan bahasa Indonesia yang sopan dan profesional
-- Sebutkan sumber informasi jika relevan`;
+- Sebutkan sumber dokumen jika relevan`;
+    
+    // Add conversation history to system prompt if available
+    if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+      systemPrompt += `\n\nRiwayat percakapan sebelumnya:\n${conversationHistory.map(msg => `${msg.role}: ${msg.content}`).join('\n')}`;
+    }
     
     // Generate streaming response using OpenAI
     const openaiStream = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
-        ...conversationHistory,
         { role: 'user', content: userMessage }
       ],
       stream: true,
