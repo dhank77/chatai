@@ -193,7 +193,7 @@ Instruksi:
     
     // Generate response
     const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o-mini',
       messages,
       max_tokens: 500,
       temperature: 0.7,
@@ -247,20 +247,9 @@ Instruksi:
 - Berikan jawaban yang helpful dan akurat
 - Gunakan bahasa Indonesia yang sopan dan profesional`;
     
-    // Build conversation history for Gemini
-    let conversationText = systemPrompt + '\n\n';
-    
-    // Add conversation history
-    conversationHistory.forEach(msg => {
-      conversationText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n`;
-    });
-    
-    // Add current user message
-    conversationText += `User: ${userMessage}\nAssistant:`;
-    
     // Generate streaming response using OpenAI
     const openaiStream = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         ...conversationHistory,
@@ -293,10 +282,26 @@ Instruksi:
       stream,
     };
   } catch (error) {
-    console.error('Error generating stream chat response with Gemini:', error);
+    console.error('Error generating stream chat response with OpenAI:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Gagal generate stream response dengan OpenAI';
+    
+    if (error instanceof Error) {
+      if (error.message.includes('API key')) {
+        errorMessage = 'API key OpenAI tidak valid atau tidak ditemukan';
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        errorMessage = 'Gagal terhubung ke server OpenAI';
+      } else if (error.message.includes('quota') || error.message.includes('limit')) {
+        errorMessage = 'Quota API OpenAI telah habis';
+      } else {
+        errorMessage = `Error OpenAI: ${error.message}`;
+      }
+    }
+    
     return {
       success: false,
-      error: 'Gagal generate stream response dengan Gemini',
+      error: errorMessage,
     };
   }
 }
