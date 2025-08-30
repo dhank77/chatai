@@ -46,7 +46,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
       throw new Error('Gagal mengambil data knowledge base');
     }
 
-    // Group by original filename (remove chunk suffix)
+    // Get actual chunks count from knowledge_base_chunks table with document info
+    const { data: chunksData, error: chunksError } = await supabase
+      .from('knowledge_base_chunks')
+      .select('id, document_id')
+      .eq('client_id', user.client_id);
+
+    if (chunksError) {
+      throw new Error('Gagal mengambil data chunks');
+    }
+
+    // Create a map of document_id to chunks count
+    const chunksCountMap = new Map();
+    chunksData?.forEach(chunk => {
+      const count = chunksCountMap.get(chunk.document_id) || 0;
+      chunksCountMap.set(chunk.document_id, count + 1);
+    });
+
+    // Group by original filename and get correct chunks count
     const documentsMap = new Map();
     data.forEach(item => {
       const originalFilename = item.filename.split('_chunk_')[0];
@@ -57,15 +74,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
           chunks: 0
         });
       }
-      documentsMap.get(originalFilename).chunks++;
+      // Get chunks count from knowledge_base_chunks table
+      const chunksCount = chunksCountMap.get(item.filename) || 0;
+      documentsMap.get(originalFilename).chunks += chunksCount;
     });
 
     const documents = Array.from(documentsMap.values());
 
-    // Get stats
+    // Get stats with correct chunks count
     const stats = {
       totalDocuments: documents.length,
-      totalChunks: data.length
+      totalChunks: chunksData?.length || 0
     };
 
     return { documents, stats };
