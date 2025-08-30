@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { type LoaderFunctionArgs, useLoaderData, useFetcher } from 'react-router';
+import { type LoaderFunctionArgs, type ActionFunctionArgs, useLoaderData, useFetcher } from 'react-router';
 import { requireAuth } from '~/lib/auth';
 import { supabase } from '~/lib/supabase';
 import { formatDate } from '~/lib/utils';
+import { createSimpleJsonResponse as json } from '~/lib/helpers';
 import {
   Settings,
   MessageSquare,
@@ -32,6 +33,101 @@ interface WidgetConfig {
 
 interface LoaderData {
   widgets: WidgetConfig[];
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+  try {
+    const user = requireAuth(request);
+    if (!user) {
+      return json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const formData = await request.formData();
+    const action = formData.get('action') as string;
+
+    if (action === 'create' || action === 'update') {
+      const widgetId = formData.get('widgetId') as string;
+      const name = formData.get('name') as string;
+      const primaryColor = formData.get('primaryColor') as string;
+      const position = formData.get('position') as string;
+      const welcomeMessage = formData.get('welcomeMessage') as string;
+      const systemPrompt = formData.get('systemPrompt') as string;
+      const isActive = formData.get('isActive') === 'true';
+
+      if (!name || !primaryColor || !position) {
+        return json({ error: 'Name, primary color, dan position harus diisi' }, { status: 400 });
+      }
+
+      const widgetData = {
+        client_id: user.client_id,
+        name,
+        primary_color: primaryColor,
+        position,
+        welcome_message: welcomeMessage || 'Halo! Ada yang bisa saya bantu?',
+        system_prompt: systemPrompt || 'Anda adalah asisten AI yang membantu menjawab pertanyaan.',
+        is_active: isActive,
+        updated_at: new Date().toISOString()
+      };
+
+      if (action === 'create') {
+        const { data, error } = await supabase
+          .from('widget_configs')
+          .insert(widgetData)
+          .select()
+          .single();
+
+        if (error) {
+          return json({ error: 'Gagal membuat widget config' }, { status: 500 });
+        }
+
+        return json({ success: true, widget: data });
+      } else {
+        // Update
+        if (!widgetId) {
+          return json({ error: 'Widget ID harus diisi untuk update' }, { status: 400 });
+        }
+
+        const { data, error } = await supabase
+          .from('widget_configs')
+          .update(widgetData)
+          .eq('id', widgetId)
+          .eq('client_id', user.client_id)
+          .select()
+          .single();
+
+        if (error) {
+          return json({ error: 'Gagal update widget config' }, { status: 500 });
+        }
+
+        return json({ success: true, widget: data });
+      }
+    }
+
+    if (action === 'delete') {
+      const widgetId = formData.get('widgetId') as string;
+
+      if (!widgetId) {
+        return json({ error: 'Widget ID harus diisi' }, { status: 400 });
+      }
+
+      const { error } = await supabase
+        .from('widget_configs')
+        .delete()
+        .eq('id', widgetId)
+        .eq('client_id', user.client_id);
+
+      if (error) {
+        return json({ error: 'Gagal menghapus widget config' }, { status: 500 });
+      }
+
+      return json({ success: true });
+    }
+
+    return json({ error: 'Action tidak valid' }, { status: 400 });
+  } catch (error) {
+    console.error('Widget config action error:', error);
+    return json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  }
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -117,8 +213,7 @@ export default function WidgetConfig() {
     submitData.append('isActive', formData.isActive.toString());
 
     fetcher.submit(submitData, {
-      method: 'POST',
-      action: '/api/widget-config'
+      method: 'POST'
     });
 
     resetForm();
@@ -134,8 +229,7 @@ export default function WidgetConfig() {
     formData.append('widgetId', widget.id);
 
     fetcher.submit(formData, {
-      method: 'POST',
-      action: '/api/widget-config'
+      method: 'POST'
     });
   };
 
@@ -190,14 +284,19 @@ export default function WidgetConfig() {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-                {editingWidget ? 'Edit Widget' : 'Buat Widget Baru'}
-              </h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+            <div className="flex flex-1 min-h-0">
+              {/* Form Section */}
+              <div className="w-1/2 flex flex-col">
+                <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    {editingWidget ? 'Edit Widget' : 'Buat Widget Baru'}
+                  </h2>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Nama Widget
@@ -285,23 +384,153 @@ export default function WidgetConfig() {
                     Widget Aktif
                   </label>
                 </div>
-
-                <div className="flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    {editingWidget ? 'Update' : 'Buat'} Widget
-                  </button>
+                  </div>
+                  
+                  {/* Form Actions - Fixed at bottom */}
+                  <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      >
+                        {editingWidget ? 'Update' : 'Buat'} Widget
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+              
+              {/* Preview Section */}
+              <div className="w-1/2 bg-gray-50 dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 flex flex-col">
+                <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                    Preview Chat Widget
+                  </h3>
                 </div>
-              </form>
+                
+                <div className="flex-1 overflow-y-auto p-6">
+                
+                {/* Chat Preview Container */}
+                <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg h-96 overflow-hidden">
+                  {/* Chat Header */}
+                  <div 
+                    className="p-4 text-white flex items-center justify-between"
+                    style={{ backgroundColor: formData.primaryColor }}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                        <MessageSquare className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">{formData.name || 'Chat Widget'}</h4>
+                        <p className="text-xs opacity-90">Online</p>
+                      </div>
+                    </div>
+                    <button className="text-white hover:bg-white hover:bg-opacity-20 rounded p-1">
+                      ✕
+                    </button>
+                  </div>
+                  
+                  {/* Chat Messages */}
+                  <div className="p-4 space-y-3 h-64 overflow-y-auto">
+                    {/* Welcome Message */}
+                    <div className="flex items-start space-x-2">
+                      <div 
+                        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: formData.primaryColor }}
+                      >
+                        <MessageSquare className="h-3 w-3 text-white" />
+                      </div>
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 max-w-xs">
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          {formData.welcomeMessage || 'Halo! Ada yang bisa saya bantu?'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Sample User Message */}
+                    <div className="flex items-start space-x-2 justify-end">
+                      <div 
+                        className="rounded-lg p-3 max-w-xs text-white"
+                        style={{ backgroundColor: formData.primaryColor }}
+                      >
+                        <p className="text-sm">
+                          Halo, saya butuh bantuan
+                        </p>
+                      </div>
+                      <div className="w-6 h-6 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs">U</span>
+                      </div>
+                    </div>
+                    
+                    {/* Sample Bot Response */}
+                    <div className="flex items-start space-x-2">
+                      <div 
+                        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: formData.primaryColor }}
+                      >
+                        <MessageSquare className="h-3 w-3 text-white" />
+                      </div>
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 max-w-xs">
+                        <p className="text-sm text-gray-900 dark:text-white">
+                          Tentu! Saya siap membantu Anda. Apa yang bisa saya bantu hari ini?
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Chat Input */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        placeholder="Ketik pesan..."
+                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        disabled
+                      />
+                      <button 
+                        className="p-2 rounded-lg text-white"
+                        style={{ backgroundColor: formData.primaryColor }}
+                        disabled
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Widget Position Preview */}
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                    Posisi Widget: {positionOptions.find(p => p.value === formData.position)?.label}
+                  </h4>
+                  <div className="relative bg-gray-100 dark:bg-gray-700 rounded-lg h-32 border-2 border-dashed border-gray-300 dark:border-gray-600">
+                    <div 
+                      className={`absolute w-12 h-12 rounded-full shadow-lg flex items-center justify-center cursor-pointer ${
+                        formData.position.includes('right') ? 'right-2' : 'left-2'
+                      } ${
+                        formData.position.includes('bottom') ? 'bottom-2' : 'top-2'
+                      }`}
+                      style={{ backgroundColor: formData.primaryColor }}
+                    >
+                      <MessageSquare className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Website Preview</span>
+                    </div>
+                  </div>
+                </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
