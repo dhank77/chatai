@@ -190,7 +190,8 @@
   justify-content: flex-end;
 }
 
-.chatbot-message.bot {
+.chatbot-message.bot,
+.chatbot-message.assistant {
   justify-content: flex-start;
 }
 
@@ -207,7 +208,8 @@
   border-bottom-right-radius: 4px;
 }
 
-.chatbot-message.bot .chatbot-message-content {
+.chatbot-message.bot .chatbot-message-content,
+.chatbot-message.assistant .chatbot-message-content {
   background: white;
   color: #374151;
   border-bottom-left-radius: 4px;

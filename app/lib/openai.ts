@@ -18,6 +18,12 @@ export interface ChatResponse {
   error?: string;
 }
 
+export interface StreamChatResponse {
+  success: boolean;
+  stream?: ReadableStream<Uint8Array>;
+  error?: string;
+}
+
 export interface SearchResult {
   content: string;
   filename: string;
@@ -186,6 +192,77 @@ Instruksi:
     return {
       success: false,
       error: 'Gagal generate response',
+    };
+  }
+}
+
+export async function generateStreamChatResponse(
+  clientId: string,
+  userMessage: string,
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
+): Promise<StreamChatResponse> {
+  try {
+    // Search relevant content from knowledge base
+    const searchResults = await searchKnowledgeBase(clientId, userMessage, 3);
+    
+    // Build context from search results
+    const context = searchResults
+      .map(result => result.content)
+      .join('\n\n');
+    
+    // Build system prompt
+    const systemPrompt = `Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base perusahaan.
+
+Konteks dari knowledge base:
+${context}
+
+Instruksi:
+- Jawab pertanyaan berdasarkan konteks yang diberikan
+- Jika informasi tidak tersedia dalam konteks, katakan bahwa Anda tidak memiliki informasi tersebut
+- Berikan jawaban yang helpful dan akurat
+- Gunakan bahasa Indonesia yang sopan dan profesional`;
+    
+    // Build conversation history for Gemini
+    let conversationText = systemPrompt + '\n\n';
+    
+    // Add conversation history
+    conversationHistory.forEach(msg => {
+      conversationText += `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}\n`;
+    });
+    
+    // Add current user message
+    conversationText += `User: ${userMessage}\nAssistant:`;
+    
+    // Generate streaming response using Gemini
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContentStream(conversationText);
+    
+    // Create a readable stream
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            if (chunkText) {
+              controller.enqueue(new TextEncoder().encode(chunkText));
+            }
+          }
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      }
+    });
+    
+    return {
+      success: true,
+      stream,
+    };
+  } catch (error) {
+    console.error('Error generating stream chat response with Gemini:', error);
+    return {
+      success: false,
+      error: 'Gagal generate stream response dengan Gemini',
     };
   }
 }

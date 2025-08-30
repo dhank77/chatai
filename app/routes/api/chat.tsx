@@ -1,5 +1,5 @@
 import { type ActionFunctionArgs } from 'react-router';
-import { generateChatResponse, searchKnowledgeBase } from '~/lib/openai';
+import { generateChatResponse, generateStreamChatResponse, searchKnowledgeBase } from '~/lib/openai';
 import { supabase } from '~/lib/supabase';
 import { requireAuth } from '~/lib/auth';
 
@@ -9,18 +9,30 @@ function json(data: any, init?: ResponseInit) {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       ...init?.headers,
+    },
+  });
+}
+
+// Handle preflight OPTIONS request
+export async function options() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
   try {
-    const formData = await request.formData();
-    const message = formData.get('message') as string;
-    const sessionId = formData.get('sessionId') as string;
-    const clientId = formData.get('clientId') as string;
-    const widgetId = formData.get('widgetId') as string;
+    const body = await request.json();
+    const { message, sessionId, clientId, widgetId, stream = true } = body;
 
     if (!message || !clientId) {
       return json({ error: 'Message dan clientId harus diisi' }, { status: 400 });
@@ -41,7 +53,33 @@ export async function action({ request }: ActionFunctionArgs) {
     // Search knowledge base for relevant context
     const relevantDocs = await searchKnowledgeBase(clientId, message, 3);
     
-    // Generate chat response using RAG
+    // Check if streaming is requested
+    if (stream) {
+      // Generate streaming chat response
+      const streamResponse = await generateStreamChatResponse(
+        clientId,
+        message,
+        [] // conversation history - could be enhanced to include previous messages
+      );
+      
+      if (!streamResponse.success) {
+        return json({ error: streamResponse.error || 'Gagal generate stream response' }, { status: 500 });
+      }
+      
+      // Return streaming response
+      return new Response(streamResponse.stream, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+    
+    // Generate regular chat response using RAG
     const chatResponse = await generateChatResponse(
       clientId,
       message,
@@ -120,6 +158,18 @@ export async function action({ request }: ActionFunctionArgs) {
 
 // GET method untuk mendapatkan chat history
 export async function loader({ request }: ActionFunctionArgs) {
+  // Handle CORS for GET requests
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    });
+  }
+
   try {
     const url = new URL(request.url);
     const sessionId = url.searchParams.get('sessionId');

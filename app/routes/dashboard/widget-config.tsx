@@ -150,7 +150,7 @@ export default function WidgetConfig() {
     welcomeMessage: '${widget.welcome_message}'
   };
 </script>
-<script src="${process.env.WIDGET_SCRIPT_URL || 'http://localhost:5173/widget/chatbot.js'}"></script>`;
+<script src="${import.meta.env.WIDGET_SCRIPT_URL || 'http://localhost:5176/chatbot.js'}"></script>`;
   };
 
   const copyToClipboard = (text: string) => {

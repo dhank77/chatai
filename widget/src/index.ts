@@ -220,38 +220,26 @@ class ChatbotWidget {
   }
 
   private async sendMessage(): Promise<void> {
-    const content = this.input.value.trim();
-    if (!content || this.isTyping) return;
-    
+    const message = this.input.value.trim();
+    if (!message || this.isTyping) return;
+
     // Add user message
     this.addMessage({
       id: this.generateMessageId(),
-      content,
+      content: message,
       role: 'user',
       timestamp: new Date()
     });
-    
+
     // Clear input
     this.input.value = '';
     this.autoResizeInput();
-    
+
     // Show typing indicator
     this.showTypingIndicator();
-    
+
     try {
-      // Send to API
-      const response = await this.callChatAPI(content);
-      
-      // Hide typing indicator
-      this.hideTypingIndicator();
-      
-      // Add bot response
-      this.addMessage({
-        id: this.generateMessageId(),
-        content: response.message,
-        role: 'assistant',
-        timestamp: new Date()
-      });
+      await this.callStreamChatAPI(message);
     } catch (error) {
       console.error('Chat API error:', error);
       this.hideTypingIndicator();
@@ -259,7 +247,7 @@ class ChatbotWidget {
     }
   }
 
-  private async callChatAPI(message: string): Promise<{ message: string }> {
+  private async callStreamChatAPI(message: string): Promise<void> {
     const response = await fetch(`${this.config.apiUrl}/chat`, {
       method: 'POST',
       headers: {
@@ -269,7 +257,76 @@ class ChatbotWidget {
         message,
         sessionId: this.sessionId,
         widgetId: this.config.widgetId,
-        clientId: this.config.clientId
+        clientId: this.config.clientId,
+        stream: true
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    // Hide typing indicator and create message element for streaming
+    this.hideTypingIndicator();
+    
+    const messageId = this.generateMessageId();
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chatbot-message assistant chatbot-fade-in';
+    messageDiv.innerHTML = `
+      <div class="chatbot-message-content">
+        <span class="streaming-content"></span>
+      </div>
+    `;
+    
+    this.messagesContainer.appendChild(messageDiv);
+    this.scrollToBottom();
+    
+    const contentSpan = messageDiv.querySelector('.streaming-content') as HTMLElement;
+    let fullContent = '';
+    
+    // Read the stream
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    
+    if (reader) {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          fullContent += chunk;
+          contentSpan.innerHTML = this.formatMessage(fullContent);
+          this.scrollToBottom();
+        }
+        
+        // Add to messages array when complete
+        this.messages.push({
+          id: messageId,
+          content: fullContent,
+          role: 'assistant',
+          timestamp: new Date()
+        });
+        
+      } catch (error) {
+        console.error('Stream reading error:', error);
+        this.showError('Error reading response stream.');
+      }
+    }
+  }
+
+  private async callChatAPI(message: string): Promise<{ response?: string; message?: string; success?: boolean; error?: string }> {
+    const response = await fetch(`${this.config.apiUrl}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message,
+        sessionId: this.sessionId,
+        widgetId: this.config.widgetId,
+        clientId: this.config.clientId,
+        stream: false
       })
     });
     

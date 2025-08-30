@@ -9,7 +9,8 @@ module.exports = {
     library: 'ChatbotWidget',
     libraryTarget: 'umd',
     globalObject: 'this',
-    clean: true
+    clean: true,
+    publicPath: '/'
   },
   resolve: {
     extensions: ['.ts', '.js', '.css']
@@ -27,12 +28,7 @@ module.exports = {
       }
     ]
   },
-  plugins: [
-    new HtmlWebpackPlugin({
-      template: './src/index.html',
-      filename: 'index.html'
-    })
-  ],
+  plugins: [],
   devServer: {
     static: {
       directory: path.join(__dirname, 'dist')
