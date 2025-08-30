@@ -419,7 +419,24 @@ When working with React Router v7:
 - **After creating new routes, remind the user to run `npm run typecheck`**
 - **Assume types need to be generated if they're missing, don't assume the dev server is running**
 
-Testing account:
-- Local: http://localhost:5173
-- Email: zokubaza@mailinator.com
-- Password: password@123
+## Testing Guidelines
+
+### 1. **Development Server Management**
+- **Will NOT always run `npm run dev`** since you've already started it
+- Will **check server status first** before deciding to restart
+- Use **http://localhost:5173** as the primary URL (or whatever port is currently active)
+
+### 2. **Authentication Flow**
+When login is required, I will use the testing credentials:
+- **Email**: `zokubaza@mailinator.com`
+- **Password**: `password@123`
+- **Login first** before accessing paths that require authentication
+
+### 3. **Workflow I Will Apply**
+1. Check if the server is already running
+2. If access to login-required pages is needed, login first with testing credentials
+3. Then access the requested path
+4. Only restart server if truly necessary (e.g., configuration changes)
+
+These guidelines will make testing more efficient and follow the workflow you've established. Thank you for the clarification!
+        
