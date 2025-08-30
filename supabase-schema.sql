@@ -71,7 +71,7 @@ CREATE OR REPLACE FUNCTION search_knowledge_base(
 )
 RETURNS TABLE (
   content TEXT,
-  filename TEXT,
+  filename VARCHAR(255),
   similarity FLOAT
 )
 LANGUAGE plpgsql
