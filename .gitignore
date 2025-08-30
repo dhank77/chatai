@@ -8,3 +8,4 @@
 /build/
 .env
 migrate-vector-dimensions.sql
+app/lib/presensi.pdf

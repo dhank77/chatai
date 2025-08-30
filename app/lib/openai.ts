@@ -1,11 +1,100 @@
 import OpenAI from 'openai';
+import { OpenAIEmbeddings } from '@langchain/openai';
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
+import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
+import { Document } from '@langchain/core/documents';
+import { VectorStoreRetriever } from '@langchain/core/vectorstores';
+import { RunnableSequence, RunnablePassthrough } from '@langchain/core/runnables';
+import { StringOutputParser } from '@langchain/core/output_parsers';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { supabase } from './supabase';
-import { splitTextIntoChunks } from './utils';
 
 const openai = new OpenAI({
   baseURL: 'https://ai.sumopod.com/v1',
   apiKey: process.env.OPENAI_API_KEY || '',
 });
+
+// Initialize LangChain components for better RAG performance
+const embeddings = new OpenAIEmbeddings({
+  openAIApiKey: process.env.OPENAI_API_KEY || '',
+  modelName: 'text-embedding-3-small',
+  configuration: {
+    baseURL: 'https://ai.sumopod.com/v1',
+  },
+});
+
+const textSplitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+  separators: ['\n\n', '\n', ' ', ''],
+});
+
+// Initialize Supabase Vector Store for better similarity search
+const createVectorStore = (clientId: string) => {
+  return new SupabaseVectorStore(embeddings, {
+    client: supabase,
+    tableName: 'knowledge_base_chunks',
+    queryName: 'match_documents',
+    filter: { client_id: clientId },
+  });
+};
+
+// Create LangChain retrieval chain for enhanced RAG
+const createRetrievalChain = (clientId: string) => {
+  const vectorStore = createVectorStore(clientId);
+  const retriever = vectorStore.asRetriever({
+    searchType: 'similarity',
+    k: 5,
+  });
+
+  const prompt = ChatPromptTemplate.fromTemplate(`
+Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan konteks yang diberikan.
+Gunakan informasi berikut untuk menjawab pertanyaan dengan akurat dan informatif.
+
+Konteks:
+{context}
+
+Pertanyaan: {question}
+
+Jawaban:`);
+
+  const formatDocs = (docs: Document[]) => {
+    return docs.map(doc => `Dari ${doc.metadata.filename || 'dokumen'}:\n${doc.pageContent}`).join('\n\n');
+  };
+
+  return RunnableSequence.from([
+    {
+      context: retriever.pipe(formatDocs),
+      question: new RunnablePassthrough(),
+    },
+    prompt,
+    new StringOutputParser(),
+  ]);
+};
+
+// Enhanced RAG function using LangChain retrieval chain
+export async function enhancedRAGSearch(
+  clientId: string,
+  query: string
+): Promise<{ context: string; sources: string[] }> {
+  try {
+    const vectorStore = createVectorStore(clientId);
+    const retriever = vectorStore.asRetriever({
+      searchType: 'similarity',
+      k: 5,
+    });
+
+    const docs = await retriever.getRelevantDocuments(query);
+    
+    const context = docs.map(doc => doc.pageContent).join('\n\n');
+    const sources = [...new Set(docs.map(doc => doc.metadata.filename || 'unknown'))];
+
+    return { context, sources };
+  } catch (error) {
+    console.error('Error in enhanced RAG search:', error);
+    return { context: '', sources: [] };
+  }
+}
 
 export interface EmbeddingResult {
   success: boolean;
@@ -34,17 +123,15 @@ export interface SearchResult {
 // Generate embedding for text
 export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
   try {
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: text,
-    });
+    // Use LangChain's OpenAIEmbeddings for better performance
+    const embedding = await embeddings.embedQuery(text);
     
     return {
       success: true,
-      embedding: response.data[0].embedding,
+      embedding,
     };
   } catch (error) {
-    console.error('Error generating embedding:', error);
+    console.error('Error generating embedding with LangChain:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -58,6 +145,8 @@ export async function storeDocument(
   filename: string,
   content: string
 ): Promise<{ success: boolean; error?: string }> {
+  let documentData: any = null;
+  
   try {
     // First, create document embedding for the full content
     const documentEmbeddingResult = await generateEmbedding(content.substring(0, 1000));
@@ -67,7 +156,7 @@ export async function storeDocument(
     }
     
     // Store main document in knowledge_base
-    const { data: documentData, error: documentError } = await supabase
+    const { data, error: documentError } = await supabase
       .from('knowledge_base')
       .insert({
         client_id: clientId,
@@ -82,40 +171,73 @@ export async function storeDocument(
       throw documentError;
     }
     
-    // Split content into chunks
-    const chunks = splitTextIntoChunks(content, 1000);
+    documentData = data;
     
-    // Generate embeddings for each chunk
-    const embeddingPromises = chunks.map(async (chunk, index) => {
-      const embeddingResult = await generateEmbedding(chunk);
-      
-      if (!embeddingResult.success || !embeddingResult.embedding) {
-        throw new Error(`Failed to generate embedding for chunk ${index}`);
-      }
-      
-      return {
-        document_id: documentData.id,
-        client_id: clientId,
-        content: chunk,
-        chunk_index: index,
-        embedding: embeddingResult.embedding,
-      };
-    });
+    // Split content into chunks using LangChain's text splitter for better chunking
+    const documents = await textSplitter.createDocuments(
+      [content], 
+      [{ filename, clientId, document_id: documentData.id }]
+    );
     
-    const chunksWithEmbeddings = await Promise.all(embeddingPromises);
+    // Use LangChain Vector Store to add documents with better indexing
+    const vectorStore = createVectorStore(clientId);
     
-    // Store chunks in knowledge_base_chunks
-    const { error: chunksError } = await supabase
-      .from('knowledge_base_chunks')
-      .insert(chunksWithEmbeddings);
+    // Add documents to vector store with enhanced metadata
+    const documentsWithMetadata = documents.map((doc, index) => 
+      new Document({
+        pageContent: doc.pageContent,
+        metadata: {
+          ...doc.metadata,
+          chunk_index: index,
+          document_id: documentData.id,
+        }
+      })
+    );
     
-    if (chunksError) {
-      throw chunksError;
-    }
+    await vectorStore.addDocuments(documentsWithMetadata);
     
     return { success: true };
   } catch (error) {
-    console.error('Error storing document:', error);
+    console.error('Error storing document with LangChain:', error);
+    
+    // Fallback to original implementation if LangChain fails and we have documentData
+    if (documentData) {
+      try {
+        const documents = await textSplitter.createDocuments([content], [{ filename, clientId }]);
+        const chunks = documents.map(doc => doc.pageContent);
+        
+        const embeddingPromises = chunks.map(async (chunk, index) => {
+          const embeddingResult = await generateEmbedding(chunk);
+          
+          if (!embeddingResult.success || !embeddingResult.embedding) {
+            throw new Error(`Failed to generate embedding for chunk ${index}`);
+          }
+          
+          return {
+            document_id: documentData.id,
+            client_id: clientId,
+            content: chunk,
+            chunk_index: index,
+            embedding: embeddingResult.embedding,
+          };
+        });
+        
+        const chunksWithEmbeddings = await Promise.all(embeddingPromises);
+        
+        const { error: chunksError } = await supabase
+          .from('knowledge_base_chunks')
+          .insert(chunksWithEmbeddings);
+        
+        if (chunksError) {
+          throw chunksError;
+        }
+        
+        return { success: true };
+      } catch (fallbackError) {
+        console.error('Error in fallback storeDocument:', fallbackError);
+      }
+    }
+    
     return {
       success: false,
       error: 'Gagal menyimpan dokumen',
@@ -123,39 +245,55 @@ export async function storeDocument(
   }
 }
 
-// Search similar content in knowledge base
+// Search similar content in knowledge base using LangChain Vector Store
 export async function searchKnowledgeBase(
   clientId: string,
   query: string,
   limit: number = 5
 ): Promise<SearchResult[]> {
   try {
-    // Generate embedding for query
-    const queryEmbeddingResult = await generateEmbedding(query);
+    // Create vector store instance for this client
+    const vectorStore = createVectorStore(clientId);
     
-    if (!queryEmbeddingResult.success || !queryEmbeddingResult.embedding) {
-      return [];
-    }
+    // Perform similarity search with LangChain
+    const results = await vectorStore.similaritySearchWithScore(query, limit);
     
-    // Search using pgvector similarity
-    const { data, error } = await supabase.rpc('search_knowledge_base_chunks', {
-      client_id: clientId,
-      query_embedding: queryEmbeddingResult.embedding,
-      match_threshold: 0.7,
-      match_count: limit,
-    });
-    
-    if (error) {
-      console.error('Error searching knowledge base:', error);
-      return [];
-    }
-    
-    return data || [];
+    // Transform results to match existing interface
+    return results.map(([doc, score]) => ({
+      content: doc.pageContent,
+      filename: doc.metadata.filename || 'unknown',
+      similarity: 1 - score, // Convert distance to similarity
+    }));
   } catch (error) {
-    console.error('Error in searchKnowledgeBase:', error);
-    return [];
-  }
-}
+    console.error('Error in LangChain searchKnowledgeBase:', error);
+    
+    // Fallback to original implementation if LangChain fails
+    try {
+      const queryEmbeddingResult = await generateEmbedding(query);
+      
+      if (!queryEmbeddingResult.success || !queryEmbeddingResult.embedding) {
+        return [];
+      }
+      
+      const { data, error } = await supabase.rpc('search_knowledge_base_chunks', {
+        client_id: clientId,
+        query_embedding: queryEmbeddingResult.embedding,
+        match_threshold: 0.7,
+        match_count: limit,
+      });
+      
+      if (error) {
+        console.error('Error in fallback search:', error);
+        return [];
+      }
+      
+      return data || [];
+    } catch (fallbackError) {
+       console.error('Error in fallback searchKnowledgeBase:', fallbackError);
+       return [];
+     }
+   }
+ }
 
 // Generate chat response using RAG
 export async function generateChatResponse(
@@ -164,25 +302,23 @@ export async function generateChatResponse(
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
 ): Promise<ChatResponse> {
   try {
-    // Search relevant content from knowledge base
-    const searchResults = await searchKnowledgeBase(clientId, userMessage, 3);
+    // Use enhanced RAG search for better context retrieval
+    const { context, sources } = await enhancedRAGSearch(clientId, userMessage);
     
-    // Build context from search results
-    const context = searchResults
-      .map(result => result.content)
-      .join('\n\n');
-    
-    // Build system prompt
+    // Build enhanced system prompt with source information
     const systemPrompt = `Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base perusahaan.
 
 Konteks dari knowledge base:
 ${context}
 
+Sumber informasi: ${sources.join(', ')}
+
 Instruksi:
 - Jawab pertanyaan berdasarkan konteks yang diberikan
 - Jika informasi tidak tersedia dalam konteks, katakan bahwa Anda tidak memiliki informasi tersebut
 - Berikan jawaban yang helpful dan akurat
-- Gunakan bahasa Indonesia yang sopan dan profesional`;
+- Gunakan bahasa Indonesia yang sopan dan profesional
+- Sebutkan sumber informasi jika relevan`;
     
     // Build messages array
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -227,25 +363,23 @@ export async function generateStreamChatResponse(
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
 ): Promise<StreamChatResponse> {
   try {
-    // Search relevant content from knowledge base
-    const searchResults = await searchKnowledgeBase(clientId, userMessage, 3);
+    // Use enhanced RAG search for better context retrieval
+    const { context, sources } = await enhancedRAGSearch(clientId, userMessage);
     
-    // Build context from search results
-    const context = searchResults
-      .map(result => result.content)
-      .join('\n\n');
-    
-    // Build system prompt
+    // Build enhanced system prompt with source information
     const systemPrompt = `Anda adalah asisten AI yang membantu menjawab pertanyaan berdasarkan knowledge base perusahaan.
 
 Konteks dari knowledge base:
 ${context}
 
+Sumber informasi: ${sources.join(', ')}
+
 Instruksi:
 - Jawab pertanyaan berdasarkan konteks yang diberikan
 - Jika informasi tidak tersedia dalam konteks, katakan bahwa Anda tidak memiliki informasi tersebut
 - Berikan jawaban yang helpful dan akurat
-- Gunakan bahasa Indonesia yang sopan dan profesional`;
+- Gunakan bahasa Indonesia yang sopan dan profesional
+- Sebutkan sumber informasi jika relevan`;
     
     // Generate streaming response using OpenAI
     const openaiStream = await openai.chat.completions.create({

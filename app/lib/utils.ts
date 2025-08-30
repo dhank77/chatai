@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -46,18 +47,49 @@ export async function extractTextFromFile(file: File): Promise<string> {
   }
   
   if (file.type === 'application/pdf') {
-    // For now, return a more detailed placeholder for PDF files
-    // PDF parsing in browser/SSR environment is complex and requires server-side processing
-    const fileSize = Math.round(file.size / 1024); // KB
-    const estimatedPages = Math.max(1, Math.round(fileSize / 50)); // Rough estimate: 50KB per page
-    
-    // Generate multiple chunks to simulate real PDF content
-    const chunks = [];
-    for (let i = 1; i <= Math.min(estimatedPages, 10); i++) {
-      chunks.push(`Halaman ${i} dari dokumen ${file.name}. Ini adalah konten simulasi untuk halaman ${i}. Dokumen ini berisi informasi penting yang akan digunakan untuk pencarian dan analisis. Setiap halaman memiliki konten yang berbeda dan relevan dengan topik yang dibahas dalam dokumen.`);
+    try {
+      // Create a temporary file path for the PDF
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // Create a temporary file using Node.js fs (server-side only)
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      
+      const tempDir = os.tmpdir();
+      const tempFilePath = path.join(tempDir, `temp_${Date.now()}_${file.name}`);
+      
+      // Write the file to temporary location
+      fs.writeFileSync(tempFilePath, uint8Array);
+      
+      try {
+        // Use LangChain PDFLoader to extract text
+        const loader = new PDFLoader(tempFilePath);
+        const docs = await loader.load();
+        
+        // Combine all pages into a single text
+        const extractedText = docs.map(doc => doc.pageContent).join('\n\n');
+        
+        // Clean up temporary file
+        fs.unlinkSync(tempFilePath);
+        
+        return extractedText || `Content from ${file.name}`;
+      } catch (pdfError) {
+        // Clean up temporary file on error
+        try {
+          fs.unlinkSync(tempFilePath);
+        } catch {}
+        
+        console.error('PDF extraction error:', pdfError);
+        // Fallback to placeholder if PDF extraction fails
+        return `Content from ${file.name} (PDF extraction failed)`;
+      }
+    } catch (error) {
+      console.error('File processing error:', error);
+      // Fallback to placeholder if file processing fails
+      return `Content from ${file.name} (processing failed)`;
     }
-    
-    return chunks.join('\n\n');
   }
   
   // For other file types, return a placeholder
