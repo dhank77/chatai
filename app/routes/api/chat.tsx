@@ -1,23 +1,9 @@
-import { type ActionFunctionArgs } from 'react-router';
-import { generateChatResponse, generateStreamChatResponse, searchKnowledgeBase } from '~/lib/openai';
 import { supabase } from '~/lib/supabase';
-import { requireAuth } from '~/lib/auth';
+import { generateChatResponse, generateStreamChatResponse, searchKnowledgeBase } from '~/lib/openai';
+import { createJsonResponse as json } from '~/lib/helpers';
+import { saveStreamChatSession, updateSessionWithResponse } from '~/lib/helpers';
+import type { ActionFunctionArgs } from 'react-router';
 
-// Helper function to create JSON responses
-function json(data: any, init?: ResponseInit) {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      ...init?.headers,
-    },
-  });
-}
-
-// Handle preflight OPTIONS request
 export async function options() {
   return new Response(null, {
     status: 200,
@@ -66,8 +52,62 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ error: streamResponse.error || 'Gagal generate stream response' }, { status: 500 });
       }
       
+      // For streaming, we need to collect the response and save it
+      // Create a readable stream that also saves the data
+      const reader = streamResponse.stream!.getReader();
+      let fullResponse = '';
+      let savedSessionId = sessionId;
+      
+      const saveableStream = new ReadableStream({
+        async start(controller) {
+          try {
+            // Send session info first if it's a new session
+            if (!savedSessionId) {
+              // Pre-create session to get sessionId
+              const { data: newSession, error: sessionError } = await supabase
+                .from('chat_sessions')
+                .insert({
+                  client_id: clientId,
+                  widget_id: widgetId,
+                  messages: [
+                    { role: 'user', content: message, timestamp: new Date().toISOString() }
+                  ]
+                })
+                .select()
+                .single();
+              
+              if (!sessionError && newSession) {
+                savedSessionId = newSession.id;
+                // Send sessionId as first chunk
+                const sessionInfo = `SESSION_ID:${savedSessionId}\n`;
+                controller.enqueue(new TextEncoder().encode(sessionInfo));
+              }
+            }
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                // Save the complete response to database
+                if (savedSessionId && fullResponse.trim()) {
+                  await updateSessionWithResponse(savedSessionId, fullResponse);
+                }
+                controller.close();
+                break;
+              }
+              
+              const chunk = new TextDecoder().decode(value);
+              fullResponse += chunk;
+              controller.enqueue(value);
+            }
+          } catch (error) {
+            console.error('Error in stream processing:', error);
+            controller.error(error);
+          }
+        }
+      });
+      
       // Return streaming response
-      return new Response(streamResponse.stream, {
+      return new Response(saveableStream, {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Access-Control-Allow-Origin': '*',

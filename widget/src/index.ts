@@ -295,6 +295,18 @@ class ChatbotWidget {
           if (done) break;
           
           const chunk = decoder.decode(value, { stream: true });
+          
+          // Check if this chunk contains session ID
+          if (chunk.startsWith('SESSION_ID:')) {
+            const sessionIdMatch = chunk.match(/SESSION_ID:([^\n]+)/);
+            if (sessionIdMatch) {
+              this.sessionId = sessionIdMatch[1];
+              console.log('Received sessionId:', this.sessionId);
+              // Skip this chunk from being displayed
+              continue;
+            }
+          }
+          
           fullContent += chunk;
           contentSpan.innerHTML = this.formatMessage(fullContent);
           this.scrollToBottom();

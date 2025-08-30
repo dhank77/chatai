@@ -3,17 +3,7 @@ import { supabase } from '~/lib/supabase';
 import { requireAuth } from '~/lib/auth';
 import { storeDocument, deleteDocument, getKnowledgeBaseStats } from '~/lib/openai';
 import { extractTextFromFile, isValidFileType, isValidFileSize } from '~/lib/utils';
-
-// Helper function to create JSON responses
-function json(data: any, init?: ResponseInit) {
-  return new Response(JSON.stringify(data), {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
-  });
-}
+import { createSimpleJsonResponse as json } from '~/lib/helpers';
 
 export async function action({ request }: ActionFunctionArgs) {
   try {
