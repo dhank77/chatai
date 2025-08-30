@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Widget</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .test-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .test-info h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        .test-info p {
+            margin: 5px 0;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Widget Test Page</h1>
+        
+        <div class="test-info">
+            <h3>Test Configuration</h3>
+            <p><strong>Widget ID:</strong> <span id="widget-id">Loading...</span></p>
+            <p><strong>Client ID:</strong> <span id="client-id">Loading...</span></p>
+            <p><strong>Primary Color:</strong> <span id="primary-color">Loading...</span></p>
+            <p><strong>Position:</strong> <span id="position">Loading...</span></p>
+            <p><strong>Welcome Message:</strong> <span id="welcome-message">Loading...</span></p>
+        </div>
+        
+        <div class="test-info">
+            <h3>Instructions</h3>
+            <p>1. Look for the chat widget in the corner of this page</p>
+            <p>2. Check if the widget color matches the primary color above</p>
+            <p>3. Click the widget to open the chat and verify the welcome message</p>
+            <p>4. Test the chat functionality</p>
+        </div>
+    </div>
+
+    <!-- Widget Configuration -->
+    <script>
+        // Test configuration with a sample widget
+        window.chatbotConfig = {
+            widgetId: '550e8400-e29b-41d4-a716-446655440000', // This will be replaced with real ID
+            clientId: '550e8400-e29b-41d4-a716-446655440001', // This will be replaced with real client ID
+            primaryColor: '#e74c3c', // Red color for testing
+            position: 'bottom-left',
+            welcomeMessage: 'Hello! This is a test widget. How can I help you?',
+            apiUrl: 'http://localhost:5174/api'
+        };
+        
+        // Display configuration on page
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('widget-id').textContent = window.chatbotConfig.widgetId;
+            document.getElementById('client-id').textContent = window.chatbotConfig.clientId;
+            document.getElementById('primary-color').textContent = window.chatbotConfig.primaryColor;
+            document.getElementById('position').textContent = window.chatbotConfig.position;
+            document.getElementById('welcome-message').textContent = window.chatbotConfig.welcomeMessage;
+        });
+    </script>
+    
+    <!-- Load the widget -->
+    <script src="http://localhost:5174/chatbot.js"></script>
+</body>
+</html>

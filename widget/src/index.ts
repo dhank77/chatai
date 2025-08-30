@@ -43,7 +43,44 @@ class ChatbotWidget {
     };
     
     this.sessionId = this.generateSessionId();
-    this.init();
+    this.initializeWidget();
+  }
+
+  private async initializeWidget(): Promise<void> {
+    try {
+      // Fetch latest configuration from server
+      await this.fetchConfig();
+      this.init();
+    } catch (error) {
+      console.warn('Failed to fetch widget config, using default configuration:', error);
+      this.init();
+    }
+  }
+
+  private async fetchConfig(): Promise<void> {
+    if (!this.config.widgetId || !this.config.clientId) {
+      throw new Error('widgetId and clientId are required');
+    }
+
+    const response = await fetch(
+      `${this.config.apiUrl}/widget/${this.config.widgetId}?clientId=${this.config.clientId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch config: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.success && data.config) {
+      // Update configuration with server data
+      this.config = {
+        ...this.config,
+        ...data.config
+      };
+    } else {
+      throw new Error(data.error || 'Invalid response format');
+    }
   }
 
   private generateSessionId(): string {

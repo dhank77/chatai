@@ -418,3 +418,8 @@ When working with React Router v7:
 - **NEVER suggest changing `./+types/[routeName]` to `../+types/[routeName]` or any other relative path**
 - **After creating new routes, remind the user to run `npm run typecheck`**
 - **Assume types need to be generated if they're missing, don't assume the dev server is running**
+
+Testing account:
+- Local: http://localhost:5173
+- Email: zokubaza@mailinator.com
+- Password: password@123

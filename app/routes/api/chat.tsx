@@ -196,7 +196,6 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
-// GET method untuk mendapatkan chat history
 export async function loader({ request }: ActionFunctionArgs) {
   // Handle CORS for GET requests
   if (request.method === 'OPTIONS') {

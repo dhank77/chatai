@@ -33,6 +33,7 @@ interface WidgetConfig {
 
 interface LoaderData {
   widgets: WidgetConfig[];
+  clientId: string;
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -147,15 +148,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
       throw new Error('Gagal mengambil konfigurasi widget');
     }
 
-    return { widgets: widgets || [] };
+    return { widgets: widgets || [], clientId: user.client_id };
   } catch (error) {
     console.error('Widget config loader error:', error);
-    return { widgets: [] };
+    return { widgets: [], clientId: user.client_id };
   }
 }
 
 export default function WidgetConfig() {
-  const { widgets } = useLoaderData<LoaderData>();
+  const { widgets, clientId } = useLoaderData<LoaderData>();
   const fetcher = useFetcher();
   const [showForm, setShowForm] = useState(false);
   const [editingWidget, setEditingWidget] = useState<WidgetConfig | null>(null);
@@ -238,7 +239,7 @@ export default function WidgetConfig() {
 <script>
   window.chatbotConfig = {
     widgetId: '${widget.id}',
-    clientId: 'your_client_id',
+    clientId: '${clientId}',
     primaryColor: '${widget.primary_color}',
     position: '${widget.position}',
     welcomeMessage: '${widget.welcome_message}'
