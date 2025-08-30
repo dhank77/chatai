@@ -307,7 +307,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
           // Search similar chunks using pgvector
           const { data: results, error } = await supabase
-            .rpc('search_knowledge_base', {
+            .rpc('search_knowledge_base_chunks', {
               query_embedding: queryEmbedding,
               match_threshold: 0.7,
               match_count: limit,

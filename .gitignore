@@ -7,3 +7,4 @@
 /.react-router/
 /build/
 .env
+migrate-vector-dimensions.sql

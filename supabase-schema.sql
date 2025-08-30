@@ -39,6 +39,17 @@ CREATE TABLE IF NOT EXISTS knowledge_base (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create knowledge_base_chunks table for chunked documents
+CREATE TABLE IF NOT EXISTS knowledge_base_chunks (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  document_id UUID NOT NULL REFERENCES knowledge_base(id) ON DELETE CASCADE,
+  client_id VARCHAR(50) NOT NULL REFERENCES clients(client_id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  chunk_index INTEGER NOT NULL,
+  embedding vector(1536), -- OpenAI text-embedding-3-small dimension
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create chat_sessions table
 CREATE TABLE IF NOT EXISTS chat_sessions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -55,11 +66,17 @@ CREATE INDEX IF NOT EXISTS idx_clients_client_id ON clients(client_id);
 CREATE INDEX IF NOT EXISTS idx_widget_configs_client_id ON widget_configs(client_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_base_client_id ON knowledge_base(client_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_base_filename ON knowledge_base(filename);
+CREATE INDEX IF NOT EXISTS idx_knowledge_base_chunks_client_id ON knowledge_base_chunks(client_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_base_chunks_document_id ON knowledge_base_chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_client_id ON chat_sessions(client_id);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_widget_id ON chat_sessions(widget_id);
 
 -- Create vector similarity index for knowledge base
 CREATE INDEX IF NOT EXISTS idx_knowledge_base_embedding ON knowledge_base 
+USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- Create vector similarity index for knowledge base chunks
+CREATE INDEX IF NOT EXISTS idx_knowledge_base_chunks_embedding ON knowledge_base_chunks 
 USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
 -- Function to search knowledge base using vector similarity
@@ -87,6 +104,33 @@ BEGIN
     kb.client_id = search_knowledge_base.client_id
     AND 1 - (kb.embedding <=> query_embedding) > match_threshold
   ORDER BY kb.embedding <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
+
+-- Function to search knowledge base chunks using vector similarity
+CREATE OR REPLACE FUNCTION search_knowledge_base_chunks(
+  target_client_id TEXT,
+  query_embedding vector(1536),
+  match_threshold FLOAT DEFAULT 0.7,
+  match_count INT DEFAULT 5
+)
+RETURNS TABLE (
+  content TEXT,
+  similarity FLOAT
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    kbc.content,
+    1 - (kbc.embedding <=> query_embedding) AS similarity
+  FROM knowledge_base_chunks kbc
+  WHERE 
+    kbc.client_id = target_client_id
+    AND 1 - (kbc.embedding <=> query_embedding) > match_threshold
+  ORDER BY kbc.embedding <=> query_embedding
   LIMIT match_count;
 END;
 $$;

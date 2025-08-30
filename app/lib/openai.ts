@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 import { splitTextIntoChunks } from './utils';
 
 const openai = new OpenAI({
+  baseURL: 'https://ai.sumopod.com/v1',
   apiKey: process.env.OPENAI_API_KEY || '',
 });
 
@@ -37,7 +38,7 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
       model: 'text-embedding-3-small',
       input: text,
     });
-
+    
     return {
       success: true,
       embedding: response.data[0].embedding,
@@ -46,7 +47,7 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
     console.error('Error generating embedding:', error);
     return {
       success: false,
-      error: 'Gagal generate embedding',
+      error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -58,6 +59,29 @@ export async function storeDocument(
   content: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // First, create document embedding for the full content
+    const documentEmbeddingResult = await generateEmbedding(content.substring(0, 1000));
+    
+    if (!documentEmbeddingResult.success || !documentEmbeddingResult.embedding) {
+      throw new Error('Failed to generate document embedding');
+    }
+    
+    // Store main document in knowledge_base
+    const { data: documentData, error: documentError } = await supabase
+      .from('knowledge_base')
+      .insert({
+        client_id: clientId,
+        filename: filename,
+        content: content,
+        embedding: documentEmbeddingResult.embedding,
+      })
+      .select('id')
+      .single();
+    
+    if (documentError) {
+      throw documentError;
+    }
+    
     // Split content into chunks
     const chunks = splitTextIntoChunks(content, 1000);
     
@@ -70,22 +94,23 @@ export async function storeDocument(
       }
       
       return {
+        document_id: documentData.id,
         client_id: clientId,
-        filename: `${filename}_chunk_${index}`,
         content: chunk,
+        chunk_index: index,
         embedding: embeddingResult.embedding,
       };
     });
     
-    const documentsWithEmbeddings = await Promise.all(embeddingPromises);
+    const chunksWithEmbeddings = await Promise.all(embeddingPromises);
     
-    // Store in database
-    const { error } = await supabase
-      .from('knowledge_base')
-      .insert(documentsWithEmbeddings);
+    // Store chunks in knowledge_base_chunks
+    const { error: chunksError } = await supabase
+      .from('knowledge_base_chunks')
+      .insert(chunksWithEmbeddings);
     
-    if (error) {
-      throw error;
+    if (chunksError) {
+      throw chunksError;
     }
     
     return { success: true };
@@ -113,7 +138,7 @@ export async function searchKnowledgeBase(
     }
     
     // Search using pgvector similarity
-    const { data, error } = await supabase.rpc('search_knowledge_base', {
+    const { data, error } = await supabase.rpc('search_knowledge_base_chunks', {
       client_id: clientId,
       query_embedding: queryEmbeddingResult.embedding,
       match_threshold: 0.7,
@@ -233,18 +258,27 @@ Instruksi:
     // Add current user message
     conversationText += `User: ${userMessage}\nAssistant:`;
     
-    // Generate streaming response using Gemini
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const result = await model.generateContentStream(conversationText);
+    // Generate streaming response using OpenAI
+    const openaiStream = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory,
+        { role: 'user', content: userMessage }
+      ],
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 1000
+    });
     
     // Create a readable stream
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of result.stream) {
-            const chunkText = chunk.text();
-            if (chunkText) {
-              controller.enqueue(new TextEncoder().encode(chunkText));
+          for await (const chunk of openaiStream) {
+            const content = chunk.choices[0]?.delta?.content;
+            if (content) {
+              controller.enqueue(new TextEncoder().encode(content));
             }
           }
           controller.close();
@@ -253,7 +287,7 @@ Instruksi:
         }
       }
     });
-    
+
     return {
       success: true,
       stream,
@@ -277,7 +311,7 @@ export async function deleteDocument(
       .from('knowledge_base')
       .delete()
       .eq('client_id', clientId)
-      .like('filename', `${filename}%`);
+      .eq('filename', filename);
     
     if (error) {
       throw error;
@@ -296,23 +330,29 @@ export async function deleteDocument(
 // Get knowledge base stats
 export async function getKnowledgeBaseStats(clientId: string) {
   try {
-    const { data, error } = await supabase
+    // Get documents count
+    const { data: documentsData, error: documentsError } = await supabase
       .from('knowledge_base')
-      .select('filename')
+      .select('id')
       .eq('client_id', clientId);
     
-    if (error) {
-      throw error;
+    if (documentsError) {
+      throw documentsError;
     }
     
-    // Count unique documents
-    const uniqueFiles = new Set(
-      data.map(item => item.filename.split('_chunk_')[0])
-    );
+    // Get chunks count
+    const { data: chunksData, error: chunksError } = await supabase
+      .from('knowledge_base_chunks')
+      .select('id')
+      .eq('client_id', clientId);
+    
+    if (chunksError) {
+      throw chunksError;
+    }
     
     return {
-      totalDocuments: uniqueFiles.size,
-      totalChunks: data.length,
+      totalDocuments: documentsData?.length || 0,
+      totalChunks: chunksData?.length || 0,
     };
   } catch (error) {
     console.error('Error getting knowledge base stats:', error);
