@@ -384,24 +384,41 @@ export async function saveStreamChatSession(
 
 // Helper function to update session with assistant response
 export async function updateSessionWithResponse(sessionId: string, response: string) {
-  const { data: existingSession } = await supabase
-    .from('chat_sessions')
-    .select('messages')
-    .eq('id', sessionId)
-    .single();
-
-  if (existingSession) {
-    const updatedMessages = [
-      ...(existingSession.messages || []),
-      { role: 'assistant', content: response, timestamp: new Date().toISOString() }
-    ];
-
-    await supabase
+  try {
+    const { data: existingSession, error: fetchError } = await supabase
       .from('chat_sessions')
-      .update({ 
-        messages: updatedMessages,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', sessionId);
+      .select('messages')
+      .eq('id', sessionId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching session:', fetchError);
+      throw new Error(`Failed to fetch session: ${fetchError.message}`);
+    }
+
+    if (existingSession) {
+      const updatedMessages = [
+        ...(existingSession.messages || []),
+        { role: 'assistant', content: response, timestamp: new Date().toISOString() }
+      ];
+
+      const { error: updateError } = await supabase
+        .from('chat_sessions')
+        .update({ 
+          messages: updatedMessages,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
+
+      if (updateError) {
+        console.error('Error updating session:', updateError);
+        throw new Error(`Failed to update session: ${updateError.message}`);
+      }
+    } else {
+      throw new Error('Session not found');
+    }
+  } catch (error) {
+    console.error('Error in updateSessionWithResponse:', error);
+    throw error;
   }
 }

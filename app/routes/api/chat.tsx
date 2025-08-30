@@ -71,12 +71,20 @@ export async function action({ request }: ActionFunctionArgs) {
                   widget_id: widgetId,
                   messages: [
                     { role: 'user', content: message, timestamp: new Date().toISOString() }
-                  ]
+                  ],
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
                 })
                 .select()
                 .single();
               
-              if (!sessionError && newSession) {
+              if (sessionError) {
+                console.error('Error creating session:', sessionError);
+                controller.error(new Error('Failed to create session'));
+                return;
+              }
+              
+              if (newSession) {
                 savedSessionId = newSession.id;
                 // Send sessionId as first chunk
                 const sessionInfo = `SESSION_ID:${savedSessionId}\n`;
@@ -89,7 +97,11 @@ export async function action({ request }: ActionFunctionArgs) {
               if (done) {
                 // Save the complete response to database
                 if (savedSessionId && fullResponse.trim()) {
-                  await updateSessionWithResponse(savedSessionId, fullResponse);
+                  try {
+                    await updateSessionWithResponse(savedSessionId, fullResponse);
+                  } catch (error) {
+                    console.error('Error saving response to database:', error);
+                  }
                 }
                 controller.close();
                 break;
@@ -134,49 +146,67 @@ export async function action({ request }: ActionFunctionArgs) {
 
     // Save chat session
     let currentSessionId = sessionId;
-    if (!currentSessionId) {
-      // Create new session
-      const { data: newSession, error: sessionError } = await supabase
-        .from('chat_sessions')
-        .insert({
-          client_id: clientId,
-          widget_id: widgetId,
-          messages: [
-            { role: 'user', content: message, timestamp: new Date().toISOString() },
-            { role: 'assistant', content: response, timestamp: new Date().toISOString() }
-          ]
-        })
-        .select()
-        .single();
-
-      if (sessionError) {
-        console.error('Error creating session:', sessionError);
-      } else {
-        currentSessionId = newSession.id;
-      }
-    } else {
-      // Update existing session
-      const { data: existingSession } = await supabase
-        .from('chat_sessions')
-        .select('messages')
-        .eq('id', currentSessionId)
-        .single();
-
-      if (existingSession) {
-        const updatedMessages = [
-          ...(existingSession.messages || []),
-          { role: 'user', content: message, timestamp: new Date().toISOString() },
-          { role: 'assistant', content: response, timestamp: new Date().toISOString() }
-        ];
-
-        await supabase
+    try {
+      if (!currentSessionId) {
+        // Create new session
+        const { data: newSession, error: sessionError } = await supabase
           .from('chat_sessions')
-          .update({ 
-            messages: updatedMessages,
+          .insert({
+            client_id: clientId,
+            widget_id: widgetId,
+            messages: [
+              { role: 'user', content: message, timestamp: new Date().toISOString() },
+              { role: 'assistant', content: response, timestamp: new Date().toISOString() }
+            ],
+            created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-          .eq('id', currentSessionId);
+          .select()
+          .single();
+
+        if (sessionError) {
+          console.error('Error creating session:', sessionError);
+          throw new Error(`Failed to create session: ${sessionError.message}`);
+        } else {
+          currentSessionId = newSession.id;
+        }
+      } else {
+        // Update existing session
+        const { data: existingSession, error: fetchError } = await supabase
+          .from('chat_sessions')
+          .select('messages')
+          .eq('id', currentSessionId)
+          .single();
+
+        if (fetchError) {
+          console.error('Error fetching session:', fetchError);
+          throw new Error(`Failed to fetch session: ${fetchError.message}`);
+        }
+
+        if (existingSession) {
+          const updatedMessages = [
+            ...(existingSession.messages || []),
+            { role: 'user', content: message, timestamp: new Date().toISOString() },
+            { role: 'assistant', content: response, timestamp: new Date().toISOString() }
+          ];
+
+          const { error: updateError } = await supabase
+            .from('chat_sessions')
+            .update({ 
+              messages: updatedMessages,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentSessionId);
+
+          if (updateError) {
+            console.error('Error updating session:', updateError);
+            throw new Error(`Failed to update session: ${updateError.message}`);
+          }
+        }
       }
+    } catch (error) {
+      console.error('Error saving chat session:', error);
+      // Continue with response even if saving fails
     }
 
     return json({

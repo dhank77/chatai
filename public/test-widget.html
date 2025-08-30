@@ -63,14 +63,18 @@
 
     <!-- Widget Configuration -->
     <script>
-        // Test configuration with a sample widget
+        // Test configuration - UPDATE THESE VALUES WITH REAL WIDGET IDs FROM DASHBOARD
+        // To get real values:
+        // 1. Go to http://localhost:5173/dashboard/widget-config
+        // 2. Create a new widget or copy existing widget ID and client ID
+        // 3. Replace the values below
         window.chatbotConfig = {
-            widgetId: '550e8400-e29b-41d4-a716-446655440000', // This will be replaced with real ID
-            clientId: '550e8400-e29b-41d4-a716-446655440001', // This will be replaced with real client ID
-            primaryColor: '#e74c3c', // Red color for testing
-            position: 'bottom-left',
-            welcomeMessage: 'Hello! This is a test widget. How can I help you?',
-            apiUrl: 'http://localhost:5174/api'
+            widgetId: '425549a7-ab15-4056-b240-99f3f7194226', // Get this from dashboard
+            clientId: 'test_client_001', // Get this from dashboard
+            primaryColor: '#3B82F6', // Blue color matching dashboard default
+            position: 'bottom-right',
+            welcomeMessage: 'Halo! Ada yang bisa saya bantu?',
+            apiUrl: 'http://localhost:5173/api'
         };
         
         // Display configuration on page
@@ -80,10 +84,18 @@
             document.getElementById('primary-color').textContent = window.chatbotConfig.primaryColor;
             document.getElementById('position').textContent = window.chatbotConfig.position;
             document.getElementById('welcome-message').textContent = window.chatbotConfig.welcomeMessage;
+            
+            // Show warning if using placeholder values
+            if (window.chatbotConfig.widgetId.includes('REPLACE_WITH') || window.chatbotConfig.clientId.includes('REPLACE_WITH')) {
+                const warningDiv = document.createElement('div');
+                warningDiv.style.cssText = 'background: #fee; border: 1px solid #fcc; padding: 10px; margin: 10px 0; border-radius: 4px; color: #c33;';
+                warningDiv.innerHTML = '<strong>⚠️ Configuration Error:</strong> Please update widgetId and clientId with real values from the dashboard.';
+                document.querySelector('.test-info').appendChild(warningDiv);
+            }
         });
     </script>
     
     <!-- Load the widget -->
-    <script src="http://localhost:5174/chatbot.js"></script>
+    <script src="http://localhost:5176/chatbot.js"></script>
 </body>
 </html>
