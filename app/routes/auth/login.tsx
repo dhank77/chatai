@@ -9,12 +9,14 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Eye, EyeOff } from 'lucide-react';
 
-export function meta() {
+import type { Route } from './+types/login';
+
+export const meta: Route.MetaFunction = () => {
   return [
-    { title: 'Login - ChatAI Platform' },
+    { title: 'Login' },
     { name: 'description', content: 'Login ke dashboard ChatAI Platform' },
   ];
-}
+};
 
 export async function action({ request }: { request: Request }) {
   const formData = await request.formData();

@@ -28,6 +28,13 @@ interface LoaderData {
   };
 }
 
+export function meta() {
+  return [
+    { title: 'Knowledge Base' },
+    { meta: 'description', content: 'Manajemen basis pengetahuan AI' }
+  ]
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = requireAuth(request);
   if (!user) {

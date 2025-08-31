@@ -8,13 +8,6 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Eye, EyeOff } from 'lucide-react';
 
-export function meta() {
-  return [
-    { title: 'Register - ChatAI Platform' },
-    { name: 'description', content: 'Daftar akun baru ChatAI Platform' },
-  ];
-}
-
 export async function action({ request }: { request: Request }) {
   const formData = await request.formData();
   const email = formData.get('email') as string;

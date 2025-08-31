@@ -5,13 +5,9 @@ import { supabase } from '~/lib/supabase';
 import {
   Settings as SettingsIcon,
   User,
-  Key,
   Bell,
   Shield,
-  Palette,
   Save,
-  Eye,
-  EyeOff,
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
@@ -25,6 +21,13 @@ interface UserProfile {
 
 interface LoaderData {
   user: UserProfile;
+}
+
+export function meta() {
+  return [
+    { title: 'Pengaturan' },
+    { meta: 'description', content: 'Pengaturan akun pengguna' }
+  ];
 }
 
 export async function loader({ request }: LoaderFunctionArgs) {

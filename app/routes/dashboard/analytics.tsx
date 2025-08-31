@@ -42,6 +42,13 @@ interface LoaderData {
   };
 }
 
+export function meta() {
+  return [
+    { title: 'Analitik' },
+    { meta: 'description', content: 'Analitik penggunaan AI' }
+  ]
+}
+
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = requireAuth(request);
   if (!user) {

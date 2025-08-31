@@ -36,6 +36,13 @@ interface LoaderData {
   clientId: string;
 }
 
+export function meta() {
+  return [
+    { title: 'Konfigurasi Widget' },
+    { meta: 'description', content: 'Konfigurasi widget AI' }
+  ]
+}
+
 export async function action({ request }: ActionFunctionArgs) {
   try {
     const user = requireAuth(request);

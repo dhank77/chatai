@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 
+import type { Route } from './+types/index';
+
 export async function loader({ request }: { request: Request }) {
   const cookieHeader = request.headers.get('Cookie');
   const authToken = cookieHeader
@@ -67,12 +69,12 @@ export async function loader({ request }: { request: Request }) {
   };
 }
 
-export function meta() {
+export const meta: Route.MetaFunction = () => {
   return [
-    { title: 'Dashboard - ChatAI Platform' },
+    { title: 'Dashboard' },
     { name: 'description', content: 'Dashboard overview ChatAI Platform' },
   ];
-}
+};
 
 export default function Dashboard() {
   const { clientId, stats, recentChats, widgetConfig } = useLoaderData<typeof loader>();
