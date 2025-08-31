@@ -2,6 +2,7 @@ import { useLoaderData } from 'react-router';
 import { supabase } from '../../lib/supabase';
 import { getKnowledgeBaseStats } from '../../lib/openai';
 import { formatDate } from '../../lib/utils';
+import { requireAuth } from '../../lib/auth';
 import { 
   BookOpen, 
   MessageSquare, 
@@ -16,21 +17,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import type { Route } from './+types/index';
 
 export async function loader({ request }: { request: Request }) {
-  const cookieHeader = request.headers.get('Cookie');
-  const authToken = cookieHeader
-    ?.split(';')
-    .find(c => c.trim().startsWith('auth-token='))
-    ?.split('=')[1];
-
-  if (!authToken) {
+  // Get authenticated user
+  const user = requireAuth(request);
+  if (!user) {
     throw new Response('Unauthorized', { status: 401 });
   }
 
-  // Get user info from token (simplified - in real app, decode JWT)
-  // For now, we'll get client_id from a mock user
-  const clientId = 'client_demo'; // This should come from JWT token
-
   // Get knowledge base stats
+  const clientId = user.client_id;
   const kbStats = await getKnowledgeBaseStats(clientId);
 
   // Get chat sessions count

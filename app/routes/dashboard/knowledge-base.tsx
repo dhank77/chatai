@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { type LoaderFunctionArgs, type ActionFunctionArgs, useLoaderData, useFetcher } from 'react-router';
+import type { Route } from './+types/knowledge-base';
 import { requireAuth } from '~/lib/auth';
 import { supabase } from '~/lib/supabase';
 import { formatDate } from '~/lib/utils';
@@ -28,12 +29,12 @@ interface LoaderData {
   };
 }
 
-export function meta() {
+export const meta: Route.MetaFunction = () => {
   return [
     { title: 'Knowledge Base' },
-    { meta: 'description', content: 'Manajemen basis pengetahuan AI' }
-  ]
-}
+    { name: 'description', content: 'Manajemen basis pengetahuan AI' }
+  ];
+};
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const user = requireAuth(request);
@@ -53,21 +54,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
       throw new Error('Gagal mengambil data knowledge base');
     }
 
-    // Get actual chunks count from knowledge_base_chunks table with document info
+    // Get actual chunks count from knowledge_base_chunks table with filename from knowledge_base
     const { data: chunksData, error: chunksError } = await supabase
       .from('knowledge_base_chunks')
-      .select('id, document_id')
+      .select('id, knowledge_base!inner(filename)')
       .eq('client_id', user.client_id);
 
     if (chunksError) {
       throw new Error('Gagal mengambil data chunks');
     }
 
-    // Create a map of document_id to chunks count
+    // Create a map of original filename to chunks count
     const chunksCountMap = new Map();
     chunksData?.forEach(chunk => {
-      const count = chunksCountMap.get(chunk.document_id) || 0;
-      chunksCountMap.set(chunk.document_id, count + 1);
+      // Extract original filename from chunk filename (remove _chunk_X suffix)
+      const filename = (chunk.knowledge_base as any)?.filename;
+      if (filename) {
+        const originalFilename = filename.split('_chunk_')[0];
+        const count = chunksCountMap.get(originalFilename) || 0;
+        chunksCountMap.set(originalFilename, count + 1);
+      }
     });
 
     // Group by original filename and get correct chunks count
@@ -78,12 +84,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
         documentsMap.set(originalFilename, {
           filename: originalFilename,
           created_at: item.created_at,
-          chunks: 0
+          chunks: chunksCountMap.get(originalFilename) || 0
         });
       }
-      // Get chunks count from knowledge_base_chunks table
-      const chunksCount = chunksCountMap.get(item.filename) || 0;
-      documentsMap.get(originalFilename).chunks += chunksCount;
     });
 
     const documents = Array.from(documentsMap.values());

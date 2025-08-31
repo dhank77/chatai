@@ -589,10 +589,10 @@ export async function deleteDocument(
 // Get knowledge base stats
 export async function getKnowledgeBaseStats(clientId: string) {
   try {
-    // Get documents count
+    // Get documents with filename to group by original filename
     const { data: documentsData, error: documentsError } = await supabase
       .from('knowledge_base')
-      .select('id')
+      .select('filename')
       .eq('client_id', clientId);
     
     if (documentsError) {
@@ -609,8 +609,15 @@ export async function getKnowledgeBaseStats(clientId: string) {
       throw chunksError;
     }
     
+    // Group by original filename (remove _chunk_X suffix) to get unique documents count
+    const uniqueDocuments = new Set();
+    documentsData?.forEach(doc => {
+      const originalFilename = doc.filename.split('_chunk_')[0];
+      uniqueDocuments.add(originalFilename);
+    });
+    
     return {
-      totalDocuments: documentsData?.length || 0,
+      totalDocuments: uniqueDocuments.size,
       totalChunks: chunksData?.length || 0,
     };
   } catch (error) {
