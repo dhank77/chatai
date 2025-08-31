@@ -71,12 +71,6 @@ export default function Settings() {
     securityAlerts: true
   });
 
-  const [apiSettings, setApiSettings] = useState({
-    openaiApiKey: '',
-    supabaseUrl: '',
-    supabaseKey: ''
-  });
-
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -107,25 +101,9 @@ export default function Settings() {
     });
   };
 
-  const handleApiSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const formData = new FormData();
-    formData.append('action', 'updateApiSettings');
-    formData.append('openaiApiKey', apiSettings.openaiApiKey);
-    formData.append('supabaseUrl', apiSettings.supabaseUrl);
-    formData.append('supabaseKey', apiSettings.supabaseKey);
-
-    fetcher.submit(formData, {
-      method: 'POST',
-      action: '/api/settings'
-    });
-  };
-
   const tabs = [
     { id: 'profile', label: 'Profil', icon: User },
     { id: 'notifications', label: 'Notifikasi', icon: Bell },
-    { id: 'api', label: 'API Settings', icon: Key },
     { id: 'security', label: 'Keamanan', icon: Shield }
   ];
 
@@ -363,93 +341,6 @@ export default function Settings() {
                     >
                       <Save className="h-4 w-4 mr-2" />
                       Simpan Pengaturan
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* API Settings Tab */}
-            {activeTab === 'api' && (
-              <div className="p-6">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                  Pengaturan API
-                </h2>
-                
-                <form onSubmit={handleApiSubmit} className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      OpenAI API Key
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showApiKey ? 'text' : 'password'}
-                        value={apiSettings.openaiApiKey}
-                        onChange={(e) => setApiSettings({ ...apiSettings, openaiApiKey: e.target.value })}
-                        placeholder="sk-..."
-                        className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                      >
-                        {showApiKey ? (
-                          <EyeOff className="h-4 w-4 text-gray-400" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-gray-400" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Supabase URL
-                    </label>
-                    <input
-                      type="url"
-                      value={apiSettings.supabaseUrl}
-                      onChange={(e) => setApiSettings({ ...apiSettings, supabaseUrl: e.target.value })}
-                      placeholder="https://your-project.supabase.co"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Supabase Anon Key
-                    </label>
-                    <input
-                      type="password"
-                      value={apiSettings.supabaseKey}
-                      onChange={(e) => setApiSettings({ ...apiSettings, supabaseKey: e.target.value })}
-                      placeholder="eyJ..."
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                    <div className="flex">
-                      <AlertCircle className="h-5 w-5 text-yellow-400 mr-3 mt-0.5" />
-                      <div>
-                        <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                          Penting!
-                        </h3>
-                        <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                          API keys akan disimpan dengan enkripsi. Pastikan untuk menggunakan environment variables di production.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      <Save className="h-4 w-4 mr-2" />
-                      Simpan API Settings
                     </button>
                   </div>
                 </form>
