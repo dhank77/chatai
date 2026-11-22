@@ -82,4 +82,6 @@ Setelah semuanya hijau:
 | `/setup` merah di "Embedding" atau "Model chat" | Cek key, saldo, dan izin model di dashboard SuperVibeCode |
 | Widget tidak muncul di situs lain | Pastikan kode embed diambil dari dashboard situs yang sudah online (bukan localhost) |
 | Login berhasil tapi kembali ke halaman login | Situs belum HTTPS. Aktifkan AutoSSL lalu buka lewat `https://` |
+| Browser bilang "Not secure" / sertifikat tidak valid | Sertifikat masih self-signed. cPanel → SSL/TLS Status → centang domain → **Run AutoSSL** (DNS harus sudah mengarah ke server) |
+| Muncul halaman "One moment, please…" dan widget tidak bisa chat | Perlindungan anti-bot hosting (WAF) memblokir panggilan API dari widget. Minta hosting/admin mengecualikan subdomain ini, minimal path `/api/*` dan `/chatbot.js` |
 | Upload dokumen gagal di file besar | Naikkan batas upload/memori di cPanel. Maksimal file 10 MB |
