@@ -97,7 +97,7 @@ BEGIN
   RETURN QUERY
   SELECT 
     kb.content,
-    kb.filename,
+    kb.filename::TEXT,
     1 - (kb.embedding <=> query_embedding) AS similarity
   FROM knowledge_base kb
   WHERE 
@@ -126,7 +126,7 @@ BEGIN
   RETURN QUERY
   SELECT 
     kbc.content,
-    kb.filename,
+    kb.filename::TEXT,
     1 - (kbc.embedding <=> query_embedding) AS similarity
   FROM knowledge_base_chunks kbc
   JOIN knowledge_base kb ON kbc.document_id = kb.id
@@ -174,7 +174,17 @@ INSERT INTO widget_configs (client_id, name, primary_color, position, welcome_me
 ('client_demo123', 'Demo Widget', '#3B82F6', 'bottom-right', 'Halo! Selamat datang di demo chatbot kami!');
 */
 
--- Grant necessary permissions (adjust as needed for your setup)
--- GRANT ALL ON ALL TABLES IN SCHEMA public TO your_app_user;
--- GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO your_app_user;
+-- Permissions: the app server talks to Supabase with the service_role key.
+-- The public anon key must NOT read these tables (they hold password hashes and chats),
+-- so enable RLS without policies (anon/authenticated get nothing) and grant service_role.
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE widget_configs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_base ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_base_chunks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
+
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT ALL ON clients, widget_configs, knowledge_base, knowledge_base_chunks, chat_sessions TO service_role;
+GRANT EXECUTE ON FUNCTION search_knowledge_base(TEXT, vector, FLOAT, INT) TO service_role;
+GRANT EXECUTE ON FUNCTION search_knowledge_base_chunks(TEXT, vector, FLOAT, INT) TO service_role;
 -- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO your_app_user;

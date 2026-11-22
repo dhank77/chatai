@@ -3,7 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 // VITE_* vars are exposed to the browser bundle; plain SUPABASE_* vars work on the server only.
 const serverEnv = typeof process !== 'undefined' ? process.env : ({} as Record<string, string | undefined>);
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || serverEnv.SUPABASE_URL || '';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || serverEnv.SUPABASE_ANON_KEY || '';
+// On the server prefer the service-role key (bypasses RLS; never reaches the browser bundle
+// because Vite only inlines VITE_* vars). In the browser only the anon key is available.
+const isServer = typeof window === 'undefined';
+const supabaseKey =
+  (isServer && serverEnv.SUPABASE_SERVICE_ROLE_KEY) ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  serverEnv.SUPABASE_ANON_KEY ||
+  '';
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn('[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY belum di-set.');
