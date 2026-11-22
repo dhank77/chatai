@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// VITE_* vars are exposed to the browser bundle; plain SUPABASE_* vars work on the server only.
+const serverEnv = typeof process !== 'undefined' ? process.env : ({} as Record<string, string | undefined>);
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || serverEnv.SUPABASE_URL || '';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || serverEnv.SUPABASE_ANON_KEY || '';
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY belum di-set.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 

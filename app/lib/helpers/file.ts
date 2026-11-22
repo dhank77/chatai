@@ -1,11 +1,5 @@
-import OpenAI from 'openai';
 import type { FileUploadData } from '../types';
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  baseURL: 'https://ai.sumopod.com/v1',
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
+import { createEmbedding, createEmbeddings } from '../ai';
 
 // File validation constants
 export const ALLOWED_FILE_TYPES = [
@@ -129,30 +123,14 @@ export function createTextChunks(text: string, chunkSize: number = 1000, overlap
 // Embedding generation
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-ada-002',
-      input: text,
-    });
-
-    return response.data[0].embedding;
+    return await createEmbedding(text);
   } catch (error) {
     throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
-  const embeddings: number[][] = [];
-  
-  // Process in batches to avoid rate limits
-  const batchSize = 10;
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const batch = texts.slice(i, i + batchSize);
-    const batchPromises = batch.map(text => generateEmbedding(text));
-    const batchEmbeddings = await Promise.all(batchPromises);
-    embeddings.push(...batchEmbeddings);
-  }
-
-  return embeddings;
+  return createEmbeddings(texts);
 }
 
 // Complete file processing pipeline

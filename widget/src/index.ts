@@ -300,7 +300,13 @@ class ChatbotWidget {
     });
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      let serverError = '';
+      try {
+        serverError = (await response.json())?.error || '';
+      } catch {}
+      this.hideTypingIndicator();
+      this.showError(serverError || 'Sorry, I encountered an error. Please try again.');
+      return;
     }
     
     // Hide typing indicator and create message element for streaming
@@ -331,17 +337,17 @@ class ChatbotWidget {
           const { done, value } = await reader.read();
           if (done) break;
           
-          const chunk = decoder.decode(value, { stream: true });
+          let chunk = decoder.decode(value, { stream: true });
           
-          // Check if this chunk contains session ID
-          if (chunk.startsWith('SESSION_ID:')) {
-            const sessionIdMatch = chunk.match(/SESSION_ID:([^\n]+)/);
+          // The server may prefix the first chunk with "SESSION_ID:<id>\n" (possibly
+          // merged with the first piece of text) — strip it and keep the rest.
+          if (!fullContent && chunk.startsWith('SESSION_ID:')) {
+            const sessionIdMatch = chunk.match(/^SESSION_ID:([^\n]+)\n?/);
             if (sessionIdMatch) {
-              this.sessionId = sessionIdMatch[1];
-              console.log('Received sessionId:', this.sessionId);
-              // Skip this chunk from being displayed
-              continue;
+              this.sessionId = sessionIdMatch[1].trim();
+              chunk = chunk.slice(sessionIdMatch[0].length);
             }
+            if (!chunk) continue;
           }
           
           fullContent += chunk;
@@ -402,8 +408,14 @@ class ChatbotWidget {
   }
 
   private formatMessage(content: string): string {
-    // Basic markdown-like formatting
-    return content
+    // Escape HTML first so AI/user text can never inject markup, then apply basic markdown
+    const escaped = content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    return escaped
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
       .replace(/\n/g, '<br>');

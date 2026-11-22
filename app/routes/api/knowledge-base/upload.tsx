@@ -3,7 +3,7 @@ import { requireAuth } from '~/lib/auth';
 import { supabase } from '~/lib/supabase';
 import { isValidFileType, isValidFileSize, extractTextFromFile, splitTextIntoChunks } from '~/lib/utils';
 import { v4 as uuidv4 } from 'uuid';
-import OpenAI from 'openai';
+import { createEmbedding, createEmbeddings, describeAIError } from '~/lib/ai';
 
 interface KnowledgeBaseDocument {
   id: string;
@@ -28,10 +28,6 @@ interface KnowledgeBaseChunk {
   created_at: string;
 }
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
@@ -133,30 +129,18 @@ export async function action({ request }: ActionFunctionArgs) {
 
         // Process chunks and generate embeddings
         try {
-          const chunkPromises = chunks.map(async (chunk, index) => {
-            // Generate embedding using OpenAI
-            const embeddingResponse = await openai.embeddings.create({
-              model: 'text-embedding-3-small',
-              input: chunk,
-              encoding_format: 'float'
-            });
+          // Generate embeddings via SuperVibeCode (batched)
+          const embeddings = await createEmbeddings(chunks);
 
-            const embedding = embeddingResponse.data[0].embedding;
-
-            const chunkData: KnowledgeBaseChunk = {
-              id: uuidv4(),
-              document_id: documentId,
-              client_id: user.client_id,
-              content: chunk,
-              chunk_index: index,
-              embedding,
-              created_at: new Date().toISOString()
-            };
-
-            return chunkData;
-          });
-
-          const processedChunks = await Promise.all(chunkPromises);
+          const processedChunks: KnowledgeBaseChunk[] = chunks.map((chunk, index) => ({
+            id: uuidv4(),
+            document_id: documentId,
+            client_id: user.client_id,
+            content: chunk,
+            chunk_index: index,
+            embedding: embeddings[index],
+            created_at: new Date().toISOString()
+          }));
 
           // Insert chunks to database
           const { error: chunksError } = await supabase
@@ -199,7 +183,7 @@ export async function action({ request }: ActionFunctionArgs) {
             .eq('id', documentId);
 
           return Response.json(
-            { error: 'Gagal memproses embeddings' },
+            { error: typeof (error as { status?: number })?.status === 'number' ? describeAIError(error) : 'Gagal memproses embeddings' },
             { status: 500 }
           );
         }
@@ -297,19 +281,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
         try {
           // Generate embedding for search query
-          const embeddingResponse = await openai.embeddings.create({
-            model: 'text-embedding-3-small',
-            input: query,
-            encoding_format: 'float'
-          });
-
-          const queryEmbedding = embeddingResponse.data[0].embedding;
+          const queryEmbedding = await createEmbedding(query);
 
           // Search similar chunks using pgvector
           const { data: results, error } = await supabase
             .rpc('search_knowledge_base_chunks', {
               query_embedding: queryEmbedding,
-              match_threshold: 0.7,
+              match_threshold: Number(process.env.AI_MATCH_THRESHOLD ?? 0.3),
               match_count: limit,
               target_client_id: user.client_id
             });
