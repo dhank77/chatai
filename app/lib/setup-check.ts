@@ -1,3 +1,4 @@
+import { lookup } from 'node:dns/promises';
 import { supabase } from './supabase';
 import { ai, AI_BASE_URL, AI_CHAT_MODEL, AI_EMBEDDING_MODEL, describeAIError } from './ai';
 
@@ -21,6 +22,21 @@ const CACHE_MS = 5 * 60 * 1000;
 let cached: { at: number; report: SetupReport } | null = null;
 
 const isSet = (v?: string) => !!v && !/^(your_|sk-\.\.\.$)/.test(v.trim());
+
+/** "HTTP 404 · app.supervibecode.ai.id → 1.2.3.4" — shows where the server actually connects. */
+async function aiDiagnostics(error: unknown): Promise<string> {
+  const host = new URL(AI_BASE_URL).hostname;
+  const status = (error as { status?: number })?.status;
+  let ip = '?';
+  try {
+    ip = (await lookup(host)).address;
+  } catch {
+    ip = 'DNS gagal';
+  }
+  // Provider's own message (never contains the key), trimmed for display
+  const raw = error instanceof Error ? error.message.replace(/sk-[A-Za-z0-9_-]+/g, 'sk-***').slice(0, 160) : '';
+  return `${describeAIError(error)} (${status ? `HTTP ${status}` : 'tanpa respons'} · ${AI_BASE_URL} → ${ip})${raw ? ` — ${raw}` : ''}`;
+}
 
 async function checkAI(): Promise<SetupCheck[]> {
   if (!isSet(process.env.SUPERVIBECODE_API_KEY) && !isSet(process.env.OPENAI_API_KEY)) {
@@ -50,8 +66,8 @@ async function checkAI(): Promise<SetupCheck[]> {
       id: 'ai-embedding',
       label: `Embedding (${AI_EMBEDDING_MODEL})`,
       ok: false,
-      detail: describeAIError(error),
-      hint: `Periksa key, saldo, dan izin model di ${AI_BASE_URL.replace(/\/v1$/, '')}.`,
+      detail: await aiDiagnostics(error),
+      hint: `Periksa key, saldo, dan izin model di ${AI_BASE_URL.replace(/\/v1$/, '')}. Jika HTTP 404 padahal model ada, server ini kemungkinan me-resolve ${new URL(AI_BASE_URL).hostname} ke IP yang salah (cek Zone Editor cPanel).`,
     });
   }
 
@@ -67,7 +83,7 @@ async function checkAI(): Promise<SetupCheck[]> {
       id: 'ai-chat',
       label: `Model chat (${AI_CHAT_MODEL})`,
       ok: false,
-      detail: describeAIError(error),
+      detail: await aiDiagnostics(error),
       hint: 'Periksa AI_CHAT_MODEL (daftar model: https://app.supervibecode.ai.id/models) dan izin model pada API key.',
     });
   }
@@ -141,6 +157,7 @@ export async function runSetupChecks(force = false): Promise<SetupReport> {
   const [ai, db] = await Promise.all([checkAI(), checkDatabase()]);
   const checks = [...checkSecrets(), ...db, ...ai].map((c) => (c.ok ? { ...c, hint: undefined } : c));
   const report: SetupReport = { ok: checks.every((c) => c.ok), checkedAt: new Date().toISOString(), checks };
-  cached = { at: Date.now(), report };
+  // Only cache a fully green report, so a fix shows up immediately on reload
+  cached = report.ok ? { at: Date.now(), report } : null;
   return report;
 }

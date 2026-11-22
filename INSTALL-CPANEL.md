@@ -18,11 +18,12 @@ File ini aman dijalankan ulang dan tidak menghapus data.
 ## 2. Upload ke cPanel
 
 1. cPanel → **File Manager** → buat folder `chatai` di home (sejajar dengan `public_html`, **bukan di dalamnya**)
-2. Upload `chatai-cpanel.zip` ke folder itu → klik kanan → **Extract**
+2. Upload `chatai-cpanel.tar.gz` ke folder itu → klik kanan → **Extract**
+3. Setelah diekstrak, hapus file `chatai-cpanel.tar.gz` dari server
 
 ## 3. Isi konfigurasi `.env`
 
-Lewati langkah ini jika zip dibuat dengan `--with-env`.
+Lewati langkah ini jika arsip dibuat dengan `--with-env`.
 
 Di File Manager, salin `.env.example` menjadi `.env`, lalu edit isinya:
 
@@ -47,7 +48,7 @@ cPanel → **Setup Node.js App** → **Create Application**:
 | Application mode | Production |
 | Application root | `chatai` |
 | Application URL | domain/subdomain yang dipakai |
-| Application startup file | `app.cjs` |
+| Application startup file | `app.mjs` (default cPanel) atau `app.cjs`, keduanya bisa |
 
 Klik **Create**. Setelah itu:
 
@@ -64,12 +65,31 @@ Setelah semuanya hijau:
 2. upload dokumen di **Knowledge Base**;
 3. buka **Widget Config** → buat widget → salin kode embed ke situs kamu.
 
+## 6. Jangan jadikan folder domain sebagai Application root
+
+Jika *Application root* sama dengan folder publik domain (mis. `/home/user/chatbot.domain.com`), LiteSpeed menyajikan file aplikasi (`stderr.log`, `server.mjs`, `package.json`, dll) langsung ke publik. Aturan `FilesMatch` di `.htaccess` **tidak bisa dipakai** untuk menutupnya, karena di LiteSpeed aturan itu ikut memblokir aplikasi sehingga seluruh situs menjadi 403.
+
+Cara yang benar: letakkan aplikasi di folder **di luar** folder domain.
+
+1. Buat folder `~/chatbot` (sejajar dengan `public_html`), lalu pindahkan semua file aplikasi ke sana, termasuk `.env`
+2. Setup Node.js App → edit aplikasi → *Application root* = `chatbot` → **Save** → **Run NPM Install** → **Restart**
+3. Biarkan folder domain hanya berisi `.htaccess` buatan cPanel
+
+Jika belum sempat memindahkan, aturan aman sementara (hanya menutup folder) adalah:
+
+```apache
+# BEGIN ChatAI
+RewriteEngine On
+RewriteRule ^(build|tmp|node_modules|public)(/|$) - [F,L]
+# END ChatAI
+```
+
 ---
 
 ## Update versi baru
 
 1. Di komputer: jalankan `npm run package:cpanel`
-2. Upload zip baru dan extract ke folder `chatai`, timpa semua file. File `.env` di server tidak ikut tertimpa jika zip dibuat tanpa `--with-env`.
+2. Upload `chatai-cpanel.tar.gz` baru dan extract ke folder `chatai`, timpa semua file. File `.env` di server tidak ikut tertimpa jika arsip dibuat tanpa `--with-env`.
 3. Di Setup Node.js App, klik **Run NPM Install** lalu **Restart**.
 
 ## Masalah umum
@@ -77,6 +97,7 @@ Setelah semuanya hijau:
 | Gejala | Solusi |
 |---|---|
 | "application should not contain folder node_modules" | Hapus folder `node_modules` di `chatai`, lalu klik Run NPM Install |
+| 503 dan `stderr.log` berisi `require is not defined in ES module scope` di `app.mjs` | cPanel menimpa `app.mjs` dengan template "Hello World". Extract ulang arsip (timpa `app.mjs`), lalu Restart |
 | Halaman error 503 / tidak tampil | Pastikan startup file `app.cjs` dan Node ≥ 20. Lihat log `stderr.log` di folder aplikasi |
 | `/setup` merah di "Tabel database" | Jalankan ulang `supabase-schema.sql` |
 | `/setup` merah di "Embedding" atau "Model chat" | Cek key, saldo, dan izin model di dashboard SuperVibeCode |
@@ -84,4 +105,6 @@ Setelah semuanya hijau:
 | Login berhasil tapi kembali ke halaman login | Situs belum HTTPS. Aktifkan AutoSSL lalu buka lewat `https://` |
 | Browser bilang "Not secure" / sertifikat tidak valid | Sertifikat masih self-signed. cPanel → SSL/TLS Status → centang domain → **Run AutoSSL** (DNS harus sudah mengarah ke server) |
 | Muncul halaman "One moment, please…" dan widget tidak bisa chat | Perlindungan anti-bot hosting (WAF) memblokir panggilan API dari widget. Minta hosting/admin mengecualikan subdomain ini, minimal path `/api/*` dan `/chatbot.js` |
+| `/setup` merah di Embedding/Model chat dengan `HTTP 404`, padahal key benar | Server me-resolve `app.supervibecode.ai.id` ke IP yang salah (zona DNS lokal di cPanel). cPanel → **Zone Editor** → domain `supervibecode.ai.id` → tambah/ubah **A record** `app` ke IP yang benar (cek dengan `dig app.supervibecode.ai.id` dari komputer lain) |
+| Upload ditolak: "contains a virus … JS_Zip" | False positive antivirus untuk file .zip berisi JavaScript. Upload versi `.tar.gz` (hasil `npm run package:cpanel`), jangan .zip |
 | Upload dokumen gagal di file besar | Naikkan batas upload/memori di cPanel. Maksimal file 10 MB |
