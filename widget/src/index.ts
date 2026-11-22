@@ -1,5 +1,15 @@
 import './widget.css';
 
+// Resolve the API from wherever this script was served (e.g. https://chat.example.com/chatbot.js
+// -> https://chat.example.com/api), so embeds work without hardcoding a host.
+const SCRIPT_ORIGIN: string = (() => {
+  try {
+    const src = (document.currentScript as HTMLScriptElement | null)?.src;
+    if (src) return new URL(src).origin;
+  } catch {}
+  return window.location.origin;
+})();
+
 interface ChatbotConfig {
   widgetId: string;
   clientId: string;
@@ -33,7 +43,7 @@ class ChatbotWidget {
 
   constructor(config: ChatbotConfig) {
     this.config = {
-      apiUrl: 'http://localhost:5173/api',
+      apiUrl: `${SCRIPT_ORIGIN}/api`,
       primaryColor: '#3B82F6',
       position: 'bottom-right',
       welcomeMessage: 'Hello! How can I help you today?',

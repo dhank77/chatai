@@ -3,6 +3,7 @@ import { type LoaderFunctionArgs, type ActionFunctionArgs, useLoaderData, useFet
 import { requireAuth } from '~/lib/auth';
 import { supabase } from '~/lib/supabase';
 import { formatDate } from '~/lib/utils';
+import { getAppOrigin } from '~/lib/app-url';
 import { createSimpleJsonResponse as json } from '~/lib/helpers';
 import {
   Settings,
@@ -34,6 +35,7 @@ interface WidgetConfig {
 interface LoaderData {
   widgets: WidgetConfig[];
   clientId: string;
+  appOrigin: string;
 }
 
 export function meta() {
@@ -155,15 +157,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
       throw new Error('Gagal mengambil konfigurasi widget');
     }
 
-    return { widgets: widgets || [], clientId: user.client_id };
+    return { widgets: widgets || [], clientId: user.client_id, appOrigin: getAppOrigin(request) };
   } catch (error) {
     console.error('Widget config loader error:', error);
-    return { widgets: [], clientId: user.client_id };
+    return { widgets: [], clientId: user.client_id, appOrigin: getAppOrigin(request) };
   }
 }
 
 export default function WidgetConfig() {
-  const { widgets, clientId } = useLoaderData<LoaderData>();
+  const { widgets, clientId, appOrigin } = useLoaderData<LoaderData>();
   const fetcher = useFetcher();
   const [showForm, setShowForm] = useState(false);
   const [editingWidget, setEditingWidget] = useState<WidgetConfig | null>(null);
@@ -242,17 +244,21 @@ export default function WidgetConfig() {
   };
 
   const generateEmbedScript = (widget: WidgetConfig) => {
+    // JSON.stringify keeps quotes/newlines in the welcome message from breaking the snippet
+    const config = {
+      widgetId: widget.id,
+      clientId,
+      apiUrl: `${appOrigin}/api`,
+      primaryColor: widget.primary_color,
+      position: widget.position,
+      welcomeMessage: widget.welcome_message,
+    };
+    const configJson = JSON.stringify(config, null, 2).replace(/</g, '\\u003c');
     return `<!-- Chatbot Widget Script -->
 <script>
-  window.chatbotConfig = {
-    widgetId: '${widget.id}',
-    clientId: '${clientId}',
-    primaryColor: '${widget.primary_color}',
-    position: '${widget.position}',
-    welcomeMessage: '${widget.welcome_message}'
-  };
+  window.chatbotConfig = ${configJson.replace(/\n/g, '\n  ')};
 </script>
-<script src="${import.meta.env.WIDGET_SCRIPT_URL || 'http://localhost:5176/chatbot.js'}"></script>`;
+<script src="${appOrigin}/chatbot.js" async></script>`;
   };
 
   const copyToClipboard = (text: string) => {

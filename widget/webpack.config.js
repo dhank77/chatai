@@ -4,12 +4,12 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 module.exports = {
   entry: './src/index.ts',
   output: {
-    path: path.resolve(__dirname, 'dist'),
+    // Built straight into the app's public/ folder so the app serves it at /chatbot.js
+    path: path.resolve(__dirname, '../public'),
     filename: 'chatbot.js',
     library: 'ChatbotWidget',
     libraryTarget: 'umd',
     globalObject: 'this',
-    clean: true,
     publicPath: '/'
   },
   resolve: {
@@ -31,7 +31,7 @@ module.exports = {
   plugins: [],
   devServer: {
     static: {
-      directory: path.join(__dirname, 'dist')
+      directory: path.join(__dirname, '../public')
     },
     port: 5176,
     hot: true,
