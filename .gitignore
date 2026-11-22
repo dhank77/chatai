@@ -10,3 +10,6 @@
 migrate-vector-dimensions.sql
 app/lib/presensi.pdf
 fix-search-function.sql
+
+# cPanel release package
+/release/

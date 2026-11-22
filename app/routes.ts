@@ -5,6 +5,7 @@ export default [
   route("login", "routes/auth/login.tsx"),
   route("register", "routes/auth/register.tsx"),
   route("auth/callback", "routes/auth/callback.tsx"),
+  route("setup", "routes/setup.tsx"),
  
   layout("routes/dashboard/layout.tsx", [
     route("dashboard", "routes/dashboard/index.tsx"),
@@ -17,6 +18,7 @@ export default [
   ...prefix('api', [
     route("auth/login", "routes/api/auth/login.tsx"),
     route("auth/register", "routes/api/auth/register.tsx"),
+    route("health", "routes/api/health.tsx"),
     route("chat", "routes/api/chat.tsx"),
     route("widget/config/:clientId", "routes/api/widget/config.tsx"),
     route("widget/:widgetId", "routes/api/widget/$widgetId.tsx"),

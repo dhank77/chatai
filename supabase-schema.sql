@@ -1,3 +1,6 @@
+-- ChatAI database schema — run the WHOLE file once in Supabase → SQL Editor.
+-- Safe to run again later (idempotent): it never deletes data.
+
 -- Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
@@ -79,6 +82,12 @@ USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 CREATE INDEX IF NOT EXISTS idx_knowledge_base_chunks_embedding ON knowledge_base_chunks 
 USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 
+-- Optional metadata columns used by /api/knowledge-base/upload
+ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS file_size BIGINT;
+ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS file_type VARCHAR(255);
+ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS chunk_count INTEGER;
+ALTER TABLE knowledge_base ADD COLUMN IF NOT EXISTS upload_status VARCHAR(20) DEFAULT 'completed';
+
 -- Function to search knowledge base using vector similarity
 CREATE OR REPLACE FUNCTION search_knowledge_base(
   client_id TEXT,
@@ -148,18 +157,22 @@ END;
 $$ language 'plpgsql';
 
 -- Create triggers to automatically update updated_at
+DROP TRIGGER IF EXISTS update_clients_updated_at ON clients;
 CREATE TRIGGER update_clients_updated_at 
   BEFORE UPDATE ON clients 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_widget_configs_updated_at ON widget_configs;
 CREATE TRIGGER update_widget_configs_updated_at 
   BEFORE UPDATE ON widget_configs 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_knowledge_base_updated_at ON knowledge_base;
 CREATE TRIGGER update_knowledge_base_updated_at 
   BEFORE UPDATE ON knowledge_base 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_chat_sessions_updated_at ON chat_sessions;
 CREATE TRIGGER update_chat_sessions_updated_at 
   BEFORE UPDATE ON chat_sessions 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -187,4 +200,4 @@ GRANT USAGE ON SCHEMA public TO service_role;
 GRANT ALL ON clients, widget_configs, knowledge_base, knowledge_base_chunks, chat_sessions TO service_role;
 GRANT EXECUTE ON FUNCTION search_knowledge_base(TEXT, vector, FLOAT, INT) TO service_role;
 GRANT EXECUTE ON FUNCTION search_knowledge_base_chunks(TEXT, vector, FLOAT, INT) TO service_role;
--- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO your_app_user;
+GRANT EXECUTE ON FUNCTION update_updated_at_column() TO service_role;

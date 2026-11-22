@@ -135,7 +135,7 @@ export async function action({ request }: ActionFunctionArgs) {
   } catch (error) {
     console.error('Register error:', error);
     return Response.json(
-      { error: `Terjadi kesalahan server ${error instanceof Error ? error.message : String(error)}` },
+      { error: 'Terjadi kesalahan server. Coba lagi nanti.' },
       { status: 500 }
     );
   }

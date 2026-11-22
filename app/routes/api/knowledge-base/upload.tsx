@@ -1,7 +1,8 @@
 import { type ActionFunctionArgs } from 'react-router';
 import { requireAuth } from '~/lib/auth';
 import { supabase } from '~/lib/supabase';
-import { isValidFileType, isValidFileSize, extractTextFromFile, splitTextIntoChunks } from '~/lib/utils';
+import { isValidFileType, isValidFileSize, splitTextIntoChunks } from '~/lib/utils';
+import { extractTextFromFile, UnsupportedFileError } from '~/lib/extract-text.server';
 import { v4 as uuidv4 } from 'uuid';
 import { createEmbedding, createEmbeddings, describeAIError } from '~/lib/ai';
 
@@ -57,7 +58,7 @@ export async function action({ request }: ActionFunctionArgs) {
         // Validasi file
         if (!isValidFileType(file)) {
           return Response.json(
-            { error: 'Tipe file tidak didukung. Gunakan PDF, TXT, DOC, atau DOCX.' },
+            { error: 'Tipe file tidak didukung. Gunakan PDF, DOCX, TXT, MD, CSV, atau JSON.' },
             { status: 400 }
           );
         }
@@ -79,8 +80,8 @@ export async function action({ request }: ActionFunctionArgs) {
         } catch (error) {
           console.error('Text extraction error:', error);
           return Response.json(
-            { error: 'Gagal mengekstrak teks dari file' },
-            { status: 500 }
+            { error: error instanceof UnsupportedFileError ? error.message : 'Gagal mengekstrak teks dari file' },
+            { status: error instanceof UnsupportedFileError ? 400 : 500 }
           );
         }
 

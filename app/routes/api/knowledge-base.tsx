@@ -2,7 +2,8 @@ import { type ActionFunctionArgs } from 'react-router';
 import { supabase } from '~/lib/supabase';
 import { requireAuth } from '~/lib/auth';
 import { storeDocument, deleteDocument, getKnowledgeBaseStats } from '~/lib/openai';
-import { extractTextFromFile, isValidFileType, isValidFileSize } from '~/lib/utils';
+import { isValidFileType, isValidFileSize } from '~/lib/utils';
+import { extractTextFromFile, UnsupportedFileError } from '~/lib/extract-text.server';
 import { createSimpleJsonResponse as json } from '~/lib/helpers';
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -26,7 +27,7 @@ export async function action({ request }: ActionFunctionArgs) {
       // Validate file type and size
       if (!isValidFileType(file)) {
         return json({ 
-          error: 'Tipe file tidak didukung. Gunakan PDF, TXT, DOC, atau DOCX' 
+          error: 'Tipe file tidak didukung. Gunakan PDF, DOCX, TXT, MD, CSV, atau JSON' 
         }, { status: 400 });
       }
 
@@ -62,6 +63,9 @@ export async function action({ request }: ActionFunctionArgs) {
           textLength: text.length
         });
       } catch (error) {
+        if (error instanceof UnsupportedFileError) {
+          return json({ error: error.message }, { status: 400 });
+        }
         console.error('Error processing file:', error);
         return json({ 
           error: 'Gagal memproses file' 

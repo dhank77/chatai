@@ -1,4 +1,6 @@
-import { useLoaderData } from 'react-router';
+import { Link, useLoaderData } from 'react-router';
+import { getAppOrigin } from '~/lib/app-url';
+import { buildEmbedScript } from '~/lib/embed';
 import { supabase } from '../../lib/supabase';
 import { getKnowledgeBaseStats } from '../../lib/openai';
 import { formatDate } from '../../lib/utils';
@@ -27,10 +29,10 @@ export async function loader({ request }: { request: Request }) {
   const clientId = user.client_id;
   const kbStats = await getKnowledgeBaseStats(clientId);
 
-  // Get chat sessions count
-  const { data: chatSessions, error: chatError } = await supabase
+  // Recent chat sessions + total count
+  const { data: chatSessions, count: totalChats } = await supabase
     .from('chat_sessions')
-    .select('id, created_at')
+    .select('id, created_at', { count: 'exact' })
     .eq('client_id', clientId)
     .order('created_at', { ascending: false })
     .limit(10);
@@ -43,23 +45,27 @@ export async function loader({ request }: { request: Request }) {
     .eq('client_id', clientId)
     .gte('created_at', today);
 
-  // Get widget config
+  // First active widget (a client can have several)
   const { data: widgetConfig } = await supabase
     .from('widget_configs')
     .select('*')
     .eq('client_id', clientId)
-    .single();
+    .eq('is_active', true)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
   return {
     clientId,
     stats: {
       totalDocuments: kbStats.totalDocuments,
       totalChunks: kbStats.totalChunks,
-      totalChats: chatSessions?.length || 0,
+      totalChats: totalChats ?? chatSessions?.length ?? 0,
       todayChats: todaySessions?.length || 0,
     },
     recentChats: chatSessions || [],
     widgetConfig,
+    embedScript: widgetConfig ? buildEmbedScript(widgetConfig, clientId, getAppOrigin(request)) : null,
   };
 }
 
@@ -71,7 +77,7 @@ export const meta: Route.MetaFunction = () => {
 };
 
 export default function Dashboard() {
-  const { clientId, stats, recentChats, widgetConfig } = useLoaderData<typeof loader>();
+  const { clientId, stats, recentChats, widgetConfig, embedScript } = useLoaderData<typeof loader>();
 
   const statCards = [
     {
@@ -157,26 +163,34 @@ export default function Dashboard() {
                   <MessageSquare className="w-6 h-6 text-blue-600" />
                 </div>
                 <h4 className="text-sm font-medium text-gray-900 mb-2">
-                  {widgetConfig?.bot_name || 'Assistant'}
+                  {widgetConfig?.name || 'Assistant'}
                 </h4>
                 <p className="text-xs text-gray-500 mb-3">
                   {widgetConfig?.welcome_message || 'Halo! Ada yang bisa saya bantu?'}
                 </p>
                 <div 
                   className="inline-block px-3 py-1 rounded-full text-xs text-white"
-                  style={{ backgroundColor: widgetConfig?.theme_color || '#3B82F6' }}
+                  style={{ backgroundColor: widgetConfig?.primary_color || '#3B82F6' }}
                 >
                   Theme Color
                 </div>
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-xs text-gray-500">
-                Embed code untuk website Anda:
-              </p>
-              <code className="block mt-2 p-2 bg-gray-100 rounded text-xs break-all">
-                {`<script src="https://cdn.domainku.com/chatbot.js" data-client-id="${clientId}"></script>`}
-              </code>
+              {embedScript ? (
+                <>
+                  <p className="text-xs text-gray-500">Embed code untuk website Anda:</p>
+                  <pre className="mt-2 p-2 bg-gray-100 rounded text-xs whitespace-pre-wrap break-all">{embedScript}</pre>
+                </>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  Belum ada widget aktif.{' '}
+                  <Link to="/dashboard/widget-config" className="font-medium text-blue-600 hover:underline">
+                    Buat widget
+                  </Link>{' '}
+                  untuk mendapatkan kode embed.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

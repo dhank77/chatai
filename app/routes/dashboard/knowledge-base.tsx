@@ -246,13 +246,13 @@ export default function KnowledgeBase() {
                 Drag & drop file atau klik untuk upload
               </p>
               <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Mendukung PDF, TXT, CSV, DOC (max 10MB)
+                Mendukung PDF, DOCX, TXT, MD, CSV, JSON (maks 10MB)
               </p>
               <input
                 type="file"
                 id="file-upload"
                 className="hidden"
-                accept=".pdf,.txt,.csv,.doc,.docx"
+                accept=".pdf,.docx,.txt,.md,.csv,.json"
                 onChange={(e) => handleFileUpload(e.target.files)}
               />
               <label

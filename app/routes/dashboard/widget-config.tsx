@@ -4,6 +4,7 @@ import { requireAuth } from '~/lib/auth';
 import { supabase } from '~/lib/supabase';
 import { formatDate } from '~/lib/utils';
 import { getAppOrigin } from '~/lib/app-url';
+import { buildEmbedScript } from '~/lib/embed';
 import { createSimpleJsonResponse as json } from '~/lib/helpers';
 import {
   Settings,
@@ -243,23 +244,7 @@ export default function WidgetConfig() {
     });
   };
 
-  const generateEmbedScript = (widget: WidgetConfig) => {
-    // JSON.stringify keeps quotes/newlines in the welcome message from breaking the snippet
-    const config = {
-      widgetId: widget.id,
-      clientId,
-      apiUrl: `${appOrigin}/api`,
-      primaryColor: widget.primary_color,
-      position: widget.position,
-      welcomeMessage: widget.welcome_message,
-    };
-    const configJson = JSON.stringify(config, null, 2).replace(/</g, '\\u003c');
-    return `<!-- Chatbot Widget Script -->
-<script>
-  window.chatbotConfig = ${configJson.replace(/\n/g, '\n  ')};
-</script>
-<script src="${appOrigin}/chatbot.js" async></script>`;
-  };
+  const generateEmbedScript = (widget: WidgetConfig) => buildEmbedScript(widget, clientId, appOrigin);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
